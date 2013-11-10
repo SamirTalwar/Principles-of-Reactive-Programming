@@ -1,5 +1,13 @@
+# Assignment libraries
+lib_managed
+
 # SBT
 target
+
+# Eclipse
+.classpath
+.project
+.settings
 
 # IntelliJ IDEA
 .idea
