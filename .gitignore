@@ -1,2 +1,8 @@
 # SBT
 target
+
+# IntelliJ IDEA
+.idea
+*.iml
+*.ipr
+*.iws
