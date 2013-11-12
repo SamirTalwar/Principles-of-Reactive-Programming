@@ -55,6 +55,18 @@ abstract class QuickCheckHeap extends Properties("Heap") with IntHeap {
     heapAsList.sorted == heapAsList
   }
 
+  property("melding two heaps results in a minimum of the smaller of the two minimums") = forAll { (a: H, b: H) =>
+    (!isEmpty(a) || !isEmpty(b)) ==> {
+      val min =
+        if (isEmpty(a))      findMin(b)
+        else if (isEmpty(b)) findMin(a)
+        else                 math.min(findMin(a), findMin(b))
+
+      val meldedHeap = meld(a, b)
+      findMin(meldedHeap) == min
+    }
+  }
+
   lazy val genHeap: Gen[H] = Gen.sized { size =>
     for {
       items <- listOfN(size, posNum[Int])
