@@ -1,7 +1,5 @@
 package quickcheck
 
-import common._
-
 import org.scalacheck._
 import Arbitrary._
 import Gen._
@@ -22,16 +20,12 @@ abstract class QuickCheckHeap extends Properties("Heap") with IntHeap {
   }
 
   property("inserting another value equal to the minimum value does not change the minimum value") = forAll { heap: H =>
-    val min =
-      if (isEmpty(heap)) 0
-      else findMin(heap)
+    val min = minOf(heap).getOrElse(0)
     findMin(insert(min, heap)) == min
   }
 
   property("inserting a value less than the minimum value replaces that as the new minimum value") = forAll { heap: H =>
-    val min =
-      if (isEmpty(heap)) 0
-      else findMin(heap)
+    val min = minOf(heap).getOrElse(0)
     (min > Int.MinValue) ==> {
       val newMin = min - 1
       findMin(insert(newMin, heap)) == newMin
@@ -59,11 +53,7 @@ abstract class QuickCheckHeap extends Properties("Heap") with IntHeap {
 
   property("melding two heaps results in a minimum of the smaller of the two minimums") = forAll { (a: H, b: H) =>
     (!isEmpty(a) || !isEmpty(b)) ==> {
-      val min =
-        if (isEmpty(a))      findMin(b)
-        else if (isEmpty(b)) findMin(a)
-        else                 math.min(findMin(a), findMin(b))
-
+      val min = Seq(minOf(a), minOf(b)).flatten.min
       val meldedHeap = meld(a, b)
       findMin(meldedHeap) == min
     }
@@ -81,6 +71,10 @@ abstract class QuickCheckHeap extends Properties("Heap") with IntHeap {
   }
 
   implicit lazy val arbHeap: Arbitrary[H] = Arbitrary(genHeap)
+
+  def minOf(heap: H) =
+    if (isEmpty(heap)) None
+    else Some(findMin(heap))
 
   def toList(heap: H): List[Int] =
     if (isEmpty(heap))
