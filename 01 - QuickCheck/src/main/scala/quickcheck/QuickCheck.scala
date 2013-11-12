@@ -70,7 +70,7 @@ abstract class QuickCheckHeap extends Properties("Heap") with IntHeap {
   lazy val genHeap: Gen[H] = Gen.sized { size =>
     for {
       extraItemCount <- choose(0, size)
-      items <- listOfN(size + extraItemCount, posNum[Int])
+      items <- listOfN(size + extraItemCount, arbitrary[Int])
     } yield {
       val heapWithExtras = items.foldLeft(empty)((heap, value) => insert(value, heap))
       val heapOfTheCorrectSize = (0 until extraItemCount).foldLeft(heapWithExtras)((heap, _) => deleteMin(heap))
