@@ -42,6 +42,14 @@ abstract class QuickCheckHeap extends Properties("Heap") with IntHeap {
     isEmpty(emptiedHeap)
   }
 
+  property("deleting the minimum value from a heap with many elements yields a minimum value that is equal or greater") = forAll { heap: H =>
+    (!isEmpty(heap)) ==> {
+      val min = findMin(heap)
+      val newHeap = deleteMin(heap)
+      isEmpty(newHeap) || findMin(newHeap) >= min
+    }
+  }
+
   lazy val genHeap: Gen[H] = Gen.sized { size =>
     for {
       items <- listOfN(size, posNum[Int])
