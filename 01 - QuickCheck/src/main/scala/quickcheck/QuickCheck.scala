@@ -8,11 +8,19 @@ import Gen._
 import Prop._
 
 abstract class QuickCheckHeap extends Properties("Heap") with IntHeap {
-  property("the minimum of a heap with one value is that value") = forAll { a: Int =>
-    val h = insert(a, empty)
-    findMin(h) == a
+  property("the minimum of a heap with one value is that value") = forAll { value: Int =>
+    val heap = insert(value, empty)
+    findMin(heap) == value
   }
 
+  property("the minimum of a heap with two values is the smaller") = forAll { (a: Int, b: Int) =>
+    val heap = insert(b, insert(a, empty))
+    if (a < b)
+      findMin(heap) == a
+    else
+      findMin(heap) == b
+  }
+  
   property("inserting another value equal to the minimum value does not change the minimum value") = forAll { heap: H =>
     val min =
       if (isEmpty(heap)) 0
