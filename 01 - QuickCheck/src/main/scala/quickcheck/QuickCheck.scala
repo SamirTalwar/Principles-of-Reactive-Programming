@@ -50,6 +50,11 @@ abstract class QuickCheckHeap extends Properties("Heap") with IntHeap {
     }
   }
 
+  property("repeatedly finding the minimum results in a sorted sequence") = forAll { heap: H =>
+    val heapAsList = toList(heap)
+    heapAsList.sorted == heapAsList
+  }
+
   lazy val genHeap: Gen[H] = Gen.sized { size =>
     for {
       items <- listOfN(size, posNum[Int])
@@ -57,4 +62,10 @@ abstract class QuickCheckHeap extends Properties("Heap") with IntHeap {
   }
 
   implicit lazy val arbHeap: Arbitrary[H] = Arbitrary(genHeap)
+
+  def toList(heap: H): List[Int] =
+    if (isEmpty(heap))
+      Nil
+    else
+      findMin(heap) :: toList(deleteMin(heap))
 }
