@@ -45,6 +45,21 @@ class CircuitSuite extends CircuitSimulator with FunSuite {
     testOrGate(in1, in2, out)
   }
 
+  test("a demultiplexer with no control bits is a pipe") {
+    val input = new Wire
+    val control = List()
+    val output = List(new Wire)
+    demux(input, control, output)
+
+    input.setSignal(false)
+    run
+    assert(output.map(_.getSignal) === List(false))
+
+    input.setSignal(true)
+    run
+    assert(output.map(_.getSignal) === List(true))
+  }
+
   private def testOrGate(in1: Wire, in2: Wire, out: Wire) {
     in1.setSignal(false)
     in2.setSignal(false)

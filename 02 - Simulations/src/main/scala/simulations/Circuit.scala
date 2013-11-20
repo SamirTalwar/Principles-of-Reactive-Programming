@@ -77,9 +77,11 @@ abstract class CircuitSimulator extends Simulator {
   }
 
   def demux(in: Wire, c: List[Wire], out: List[Wire]) {
-    ???
+    in addAction { () =>
+      val signal = in.getSignal
+      out.foreach(_.setSignal(signal))
+    }
   }
-
 }
 
 object Circuit extends CircuitSimulator {
