@@ -51,13 +51,10 @@ class CircuitSuite extends CircuitSimulator with FunSuite {
     val output = List(new Wire)
     demux(input, control, output)
 
-    input.setSignal(false)
-    run
-    assert(output.map(_.getSignal) === List(false))
-
-    input.setSignal(true)
-    run
-    assert(output.map(_.getSignal) === List(true))
+    verifyDemultiplexer(input, control, output,
+      (false, List()) -> List(false),
+      (true, List()) -> List(true)
+    )
   }
 
   test("a demultiplexer with one control bit is a fork") {
@@ -66,22 +63,12 @@ class CircuitSuite extends CircuitSimulator with FunSuite {
     val output = List(new Wire, new Wire)
     demux(input, control, output)
 
-    input.setSignal(false)
-    control.foreach(_.setSignal(false))
-    run
-    assert(output.map(_.getSignal) === List(false, false))
-
-    input.setSignal(true)
-    run
-    assert(output.map(_.getSignal) === List(false, true))
-
-    control.foreach(_.setSignal(true))
-    run
-    assert(output.map(_.getSignal) === List(true, false))
-
-    input.setSignal(false)
-    run
-    assert(output.map(_.getSignal) === List(false, false))
+    verifyDemultiplexer(input, control, output,
+      (false, List(false)) -> List(false, false),
+      (false, List(true )) -> List(false, false),
+      (true,  List(false)) -> List(false, true ),
+      (true,  List(true )) -> List(true,  false)
+    )
   }
 
   private def testOrGate(in1: Wire, in2: Wire, out: Wire) {
@@ -101,5 +88,14 @@ class CircuitSuite extends CircuitSimulator with FunSuite {
     in1.setSignal(false)
     run
     assert(out.getSignal === true, "false | true == true")
+  }
+
+  private def verifyDemultiplexer(input: Wire, control: List[Wire], output: List[Wire], expectations: ((Boolean, List[Boolean]), List[Boolean])*) {
+    expectations foreach { case ((inputValue, controlValues), outputValues) =>
+      input.setSignal(inputValue)
+      control.zip(controlValues).foreach { case (controlWire, controlValue) => controlWire.setSignal(controlValue) }
+      run
+      assert(output.map(_.getSignal) === outputValues)
+    }
   }
 }
