@@ -35,6 +35,17 @@ class CircuitSuite extends CircuitSimulator with FunSuite {
     val in1, in2, out = new Wire
     orGate(in1, in2, out)
 
+    testOrGate(in1, in2, out)
+  }
+
+  test("OR gate implemented in terms of an AND gate") {
+    val in1, in2, out = new Wire
+    orGate2(in1, in2, out)
+
+    testOrGate(in1, in2, out)
+  }
+
+  private def testOrGate(in1: Wire, in2: Wire, out: Wire) {
     in1.setSignal(false)
     in2.setSignal(false)
     run
