@@ -12,6 +12,7 @@ class EpidemySimulator extends Simulator {
 
     val population: Int = 300
     val transmissibilityRate = 0.4
+    val deathRate = 0.25
     def sickPeopleIn(population: Int) = population / 100
 
     // to complete: additional parameters of simulation
@@ -57,9 +58,21 @@ class EpidemySimulator extends Simulator {
 
     def infect() {
       infected = true
+      afterDelay(6) {
+        sick = true
+      }
+      afterDelay(14) {
+        if (random < deathRate) {
+          dead = true
+        }
+      }
     }
 
     def act() {
+      if (dead) {
+        return
+      }
+
       val possibleMovements = Directions.map(d => d(row, col)).filter { case (newRow, newCol) =>
         persons.filter(p => p.row == newRow && p.col == newCol).forall(p => !p.sick)
       }
