@@ -71,6 +71,32 @@ class CircuitSuite extends CircuitSimulator with FunSuite {
     )
   }
 
+  test("a demultiplexer can operate with multiple control bits") {
+    val input = new Wire
+    val control = List(new Wire, new Wire, new Wire)
+    val output = List(new Wire, new Wire, new Wire, new Wire, new Wire, new Wire, new Wire, new Wire)
+    demux(input, control, output)
+
+    verifyDemultiplexer(input, control, output,
+      (false, List(false, false, false)) -> List(false, false, false, false, false, false, false, false),
+      (false, List(false, false, false)) -> List(false, false, false, false, false, false, false, false),
+      (false, List(false, false, false)) -> List(false, false, false, false, false, false, false, false),
+      (false, List(false, false, false)) -> List(false, false, false, false, false, false, false, false),
+      (false, List(false, false, false)) -> List(false, false, false, false, false, false, false, false),
+      (false, List(false, false, false)) -> List(false, false, false, false, false, false, false, false),
+      (false, List(false, false, false)) -> List(false, false, false, false, false, false, false, false),
+      (false, List(false, false, false)) -> List(false, false, false, false, false, false, false, false),
+      (true , List(false, false, false)) -> List(false, false, false, false, false, false, false, true ),
+      (true , List(false, false, true )) -> List(false, false, false, false, false, false, true , false),
+      (true , List(false, true , false)) -> List(false, false, false, false, false, true , false, false),
+      (true , List(false, true , true )) -> List(false, false, false, false, true , false, false, false),
+      (true , List(true , false, false)) -> List(false, false, false, true , false, false, false, false),
+      (true , List(true , false, true )) -> List(false, false, true , false, false, false, false, false),
+      (true , List(true , true , false)) -> List(false, true , false, false, false, false, false, false),
+      (true , List(true , true , true )) -> List(true , false, false, false, false, false, false, false)
+    )
+  }
+
   private def testOrGate(in1: Wire, in2: Wire, out: Wire) {
     in1.setSignal(false)
     in2.setSignal(false)
