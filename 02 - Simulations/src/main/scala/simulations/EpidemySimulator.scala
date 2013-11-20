@@ -51,7 +51,7 @@ class EpidemySimulator extends Simulator {
     )
 
     def potentiallyInfect() {
-      if (random < transmissibilityRate) {
+      if (!infected && !immune && random < transmissibilityRate) {
         infect()
       }
     }
@@ -60,10 +60,19 @@ class EpidemySimulator extends Simulator {
       infected = true
       afterDelay(6) {
         sick = true
-      }
-      afterDelay(14) {
-        if (random < deathRate) {
-          dead = true
+        afterDelay(8) {
+          if (dead || random < deathRate) {
+            dead = true
+          } else {
+            afterDelay(2) {
+              sick = false
+              immune = true
+              afterDelay(2) {
+                infected = false
+                immune = false
+              }
+            }
+          }
         }
       }
     }
