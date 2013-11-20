@@ -60,6 +60,30 @@ class CircuitSuite extends CircuitSimulator with FunSuite {
     assert(output.map(_.getSignal) === List(true))
   }
 
+  test("a demultiplexer with one control bit is a fork") {
+    val input = new Wire
+    val control = List(new Wire)
+    val output = List(new Wire, new Wire)
+    demux(input, control, output)
+
+    input.setSignal(false)
+    control.foreach(_.setSignal(false))
+    run
+    assert(output.map(_.getSignal) === List(false, false))
+
+    input.setSignal(true)
+    run
+    assert(output.map(_.getSignal) === List(false, true))
+
+    control.foreach(_.setSignal(true))
+    run
+    assert(output.map(_.getSignal) === List(true, false))
+
+    input.setSignal(false)
+    run
+    assert(output.map(_.getSignal) === List(false, false))
+  }
+
   private def testOrGate(in1: Wire, in2: Wire, out: Wire) {
     in1.setSignal(false)
     in2.setSignal(false)

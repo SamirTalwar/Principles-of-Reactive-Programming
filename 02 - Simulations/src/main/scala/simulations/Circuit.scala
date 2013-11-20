@@ -54,10 +54,6 @@ abstract class CircuitSimulator extends Simulator {
     a2 addAction andAction
   }
 
-  //
-  // to complete with orGates and demux...
-  //
-
   def orGate(a1: Wire, a2: Wire, output: Wire) {
     def orAction() {
       val a1Sig = a1.getSignal
@@ -77,10 +73,19 @@ abstract class CircuitSimulator extends Simulator {
   }
 
   def demux(in: Wire, c: List[Wire], out: List[Wire]) {
-    in addAction { () =>
-      val signal = in.getSignal
-      out.foreach(_.setSignal(signal))
+    def demuxAction() {
+      if (c.size == 0) {
+        out(0).setSignal(in.getSignal)
+      } else {
+        val control = c(0)
+        val invertedControl = new Wire
+        inverter(control, invertedControl)
+        andGate(in, control, out(0))
+        andGate(in, invertedControl, out(1))
+      }
     }
+
+    in addAction demuxAction
   }
 }
 
