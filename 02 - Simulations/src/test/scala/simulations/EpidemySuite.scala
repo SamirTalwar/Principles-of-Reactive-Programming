@@ -14,7 +14,7 @@ class EpidemySuite extends FunSuite {
     val es = new EpidemySimulator
     val numInfected = es.persons.count(_.infected)
 
-    assert(numInfected == es.SimConfig.population * prevalenceRate,
+    assert(numInfected === es.SimConfig.population * prevalenceRate,
       "prevalence rate should be 0.01"
       )
   }

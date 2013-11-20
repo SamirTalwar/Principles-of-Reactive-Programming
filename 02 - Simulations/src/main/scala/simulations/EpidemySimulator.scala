@@ -7,19 +7,26 @@ class EpidemySimulator extends Simulator {
   def randomBelow(i: Int) = (random * i).toInt
 
   protected[simulations] object SimConfig {
-    val population: Int = 300
     val roomRows: Int = 8
     val roomColumns: Int = 8
+
+    val population: Int = 300
+
+    def sickPeopleIn(population: Int) = population / 100
 
     // to complete: additional parameters of simulation
   }
 
   import SimConfig._
 
-  val persons: List[Person] = (0 until population).map(new Person(_)).toList
+  val persons: List[Person] = {
+    val sickPeopleCount = sickPeopleIn(population)
+    val sickPeople = (0 until sickPeopleCount).map(new Person(_, infected = true)).toList
+    val healthyPeople = (sickPeopleCount until population).map(new Person(_, infected = false)).toList
+    sickPeople ++ healthyPeople
+  }
 
-  class Person (val id: Int) {
-    var infected = false
+  class Person (val id: Int, var infected: Boolean) {
     var sick = false
     var immune = false
     var dead = false
