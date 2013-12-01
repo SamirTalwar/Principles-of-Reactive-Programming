@@ -10,6 +10,7 @@ import org.scalatest._
 import NodeScala._
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
+import java.util.concurrent.atomic.AtomicInteger
 
 @RunWith(classOf[JUnitRunner])
 class NodeScalaSuite extends FunSuite {
@@ -129,6 +130,24 @@ class NodeScalaSuite extends FunSuite {
       result.map(i => i + " sandwich").getOrElse("no sandwich :-(")
     }
     assert(Await.result(continued, 200 milliseconds) == "no sandwich :-(")
+  }
+
+  test("`run` executes a future with the ability to cancel it") {
+    val number = new AtomicInteger(0)
+    val working = Future.run() { cancellationToken =>
+      Future {
+        while (cancellationToken.nonCancelled) {
+          number.incrementAndGet()
+        }
+      }
+    }
+
+    Future.delay(500 milliseconds).onSuccess { case _ =>
+      working.unsubscribe()
+    }
+
+    val value = number.get
+    assert(value >= 500, s"value = $value")
   }
 
   test("CancellationTokenSource should allow stopping the computation") {
