@@ -36,6 +36,14 @@ class NodeScalaSuite extends FunSuite {
     Await.result(delayed, 600 milliseconds)
   }
 
+  test("`all` succeeds when every future succeeds") {
+    val a = Future.delay(100 milliseconds).map(_ => 3)
+    val b = Future.delay(200 milliseconds).map(_ => 6)
+    val c = Future.delay(300 milliseconds).map(_ => 9)
+    val all = Future.all(List(a, b, c))
+    assert(Await.result(all, 500 milliseconds) == List(3, 6, 9))
+  }
+
   test("CancellationTokenSource should allow stopping the computation") {
     val cts = CancellationTokenSource()
     val ct = cts.cancellationToken
