@@ -107,7 +107,7 @@ package object nodescala {
     def continueWith[S](cont: Future[T] => S): Future[S] = {
       val result = Promise[S]()
       f.onComplete { _ =>
-        result.complete(Try(cont(f)))
+        result.tryComplete(Try(cont(f)))
       }
       result.future
     }
@@ -164,9 +164,9 @@ package object nodescala {
     /** Creates a new `CancellationTokenSource`.
      */
     def apply(): CancellationTokenSource = new CancellationTokenSource {
-      var cancelled = false
+      private var cancelled = false
 
-      def cancellationToken: CancellationToken = new CancellationToken {
+      var cancellationToken: CancellationToken = new CancellationToken {
         def isCancelled: Boolean = cancelled
       }
 

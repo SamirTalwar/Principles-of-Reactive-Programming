@@ -137,8 +137,8 @@ object NodeScala {
      */
     def nextRequest(): Future[(Request, Exchange)] = {
       val exchange = Promise[Exchange]()
-      createContext { e =>
-        exchange.success(e)
+      createContext { _exchange =>
+        exchange.trySuccess(_exchange)
       }
       exchange.future.map(e => (e.request, e))
     }
