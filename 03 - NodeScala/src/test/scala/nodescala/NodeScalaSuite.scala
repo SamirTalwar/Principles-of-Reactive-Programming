@@ -99,6 +99,22 @@ class NodeScalaSuite extends FunSuite {
     }
   }
 
+  test("`continueWith` continues a successful future once it has completed") {
+    val future = Future.delay(200 milliseconds).map(_ => 99)
+    val continued = future.continueWith { f =>
+      f.value.get.map(i => i + 1).getOrElse(0)
+    }
+    assert(Await.result(continued, 300 milliseconds) == 100)
+  }
+
+  test("`continueWith` continues a failed future once it has completed") {
+    val future = Future.delay(100 milliseconds).flatMap(_ => Future.failed[Int](new NoSuchElementException))
+    val continued = future.continueWith { f =>
+      f.value.get.map(i => i + 1).getOrElse(0)
+    }
+    assert(Await.result(continued, 200 milliseconds) == 0)
+  }
+
   test("CancellationTokenSource should allow stopping the computation") {
     val cts = CancellationTokenSource()
     val ct = cts.cancellationToken
