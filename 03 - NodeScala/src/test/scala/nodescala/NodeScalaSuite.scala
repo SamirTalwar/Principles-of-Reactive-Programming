@@ -44,6 +44,22 @@ class NodeScalaSuite extends FunSuite {
     assert(Await.result(all, 500 milliseconds) == List(3, 6, 9))
   }
 
+  test("`all` fails when any single future fails") {
+    val error = new OutOfMemoryError("Nope.")
+
+    val a = Future.delay(100 milliseconds).map(_ => 3)
+    val b = Future.failed(error)
+    val c = Future.delay(300 milliseconds).map(_ => 9)
+    val all = Future.all(List(a, b, c))
+
+    try {
+      Await.result(all, 500 milliseconds)
+      assert(false)
+    } catch {
+      case e: ExecutionException => assert(e.getCause == error)
+    }
+  }
+
   test("CancellationTokenSource should allow stopping the computation") {
     val cts = CancellationTokenSource()
     val ct = cts.cancellationToken
