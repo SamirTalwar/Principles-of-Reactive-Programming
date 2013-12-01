@@ -88,6 +88,17 @@ class NodeScalaSuite extends FunSuite {
     assert(future.now == 17)
   }
 
+  test("`now` fails with an error when the future is not yet complete") {
+    val future = Future.never[String]
+
+    try {
+      future.now
+      fail()
+    } catch {
+      case t: NoSuchElementException => // ok!
+    }
+  }
+
   test("CancellationTokenSource should allow stopping the computation") {
     val cts = CancellationTokenSource()
     val ct = cts.cancellationToken
