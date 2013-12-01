@@ -16,7 +16,7 @@ package object nodescala {
 
     /** Returns a future that is always completed with `value`.
      */
-    def always[T](value: T): Future[T] = ???
+    def always[T](value: T): Future[T] = Future(value)
 
     /** Returns a future that is never completed.
      *
