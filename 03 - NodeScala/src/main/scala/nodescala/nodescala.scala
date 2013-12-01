@@ -31,11 +31,10 @@ trait NodeScala {
   private def respond(exchange: Exchange, token: CancellationToken, response: Response): Unit = {
     if (token.isCancelled || response.isEmpty) {
       exchange.close()
-      return
+    } else {
+      exchange.write(response.next())
+      respond(exchange, token, response)
     }
-
-    exchange.write(response.next())
-    respond(exchange, token, response)
   }
 
   /** A server:
