@@ -1,10 +1,9 @@
 import scala.language.postfixOps
 import scala.util._
-import scala.util.control.NonFatal
 import scala.concurrent._
 import scala.concurrent.duration._
 import ExecutionContext.Implicits.global
-import scala.async.Async.{async, await}
+import scala.async.Async.async
 
 /** Contains basic data types, data structures and `Future` extensions.
  */
@@ -12,7 +11,7 @@ package object nodescala {
 
   /** Adds extensions methods to the `Future` companion object.
    */
-  implicit class FutureCompanionOps[T](val f: Future.type) extends AnyVal {
+  implicit class FutureCompanionOps(val f: Future.type) extends AnyVal {
 
     /** Returns a future that is always completed with `value`.
      */

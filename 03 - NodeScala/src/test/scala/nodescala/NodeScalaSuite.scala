@@ -214,7 +214,7 @@ class NodeScalaSuite extends FunSuite {
     def test(req: Request) {
       val f = dummy.nextRequest()
       dummy.emit(req)
-      val (reqReturned, xchg) = Await.result(f, 1 second)
+      val (reqReturned, _) = Await.result(f, 1 second)
 
       assert(reqReturned == req)
     }
@@ -228,7 +228,7 @@ class NodeScalaSuite extends FunSuite {
   test("Server should serve requests") {
     val dummy = new DummyServer(8191)
     val dummySubscription = dummy.start("/testDir") {
-      request => for (kv <- request.iterator) yield (kv + "\n").toString
+      request => for (kv <- request.iterator) yield kv.toString + "\n"
     }
 
     // wait until server is really installed
@@ -237,7 +237,7 @@ class NodeScalaSuite extends FunSuite {
     def test(req: Request) {
       val webpage = dummy.emit("/testDir", req)
       val content = Await.result(webpage.loaded.future, 1 second)
-      val expected = (for (kv <- req.iterator) yield (kv + "\n").toString).mkString
+      val expected = (for (kv <- req.iterator) yield kv.toString + "\n").mkString
       assert(content == expected, s"'$content' vs. '$expected'")
     }
 

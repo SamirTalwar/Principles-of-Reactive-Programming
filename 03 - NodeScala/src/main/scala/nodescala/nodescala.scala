@@ -27,7 +27,6 @@ trait NodeScala {
    *
    *  @param exchange     the exchange used to write the response back
    *  @param token        the cancellation token for
-   *  @param body         the response to write back
    */
   private def respond(exchange: Exchange, token: CancellationToken, response: Response): Unit = ???
 
@@ -76,7 +75,7 @@ object NodeScala {
 
   object Exchange {
     def apply(exchange: HttpExchange) = new Exchange {
-      val os = exchange.getResponseBody()
+      val os = exchange.getResponseBody
       exchange.sendResponseHeaders(200, 0L)
 
       def write(s: String) = os.write(s.getBytes)
@@ -101,14 +100,12 @@ object NodeScala {
 
     def removeContext(): Unit
 
-    /** Given a relative path:
-     *  1) constructs an uncompleted promise
+    /** 1) constructs an uncompleted promise
      *  2) installs an asynchronous request handler using `createContext`
      *     that completes the promise with a request when it arrives
      *     and then deregisters itself using `removeContext`
      *  3) returns the future with the request
      *
-     *  @param relativePath    the relative path on which we want to listen to requests
      *  @return                the promise holding the pair of a request and an exchange object
      */
     def nextRequest(): Future[(Request, Exchange)] = {
