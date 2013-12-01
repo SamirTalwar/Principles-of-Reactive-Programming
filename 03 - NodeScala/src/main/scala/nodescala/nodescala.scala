@@ -50,23 +50,23 @@ trait NodeScala {
    */
   def start(relativePath: String)(handler: Request => Response): Subscription = {
     val listener = createListener(relativePath)
-    val cancellationTokenSource = CancellationTokenSource()
-    val cancellationToken = cancellationTokenSource.cancellationToken
-
     listener.start()
-    def next(): Future[Unit] = {
-      listener.nextRequest().flatMap { case (request, exchange) =>
-        if (cancellationToken.isCancelled) {
-          Future.successful()
-        } else {
-          respond(exchange, cancellationToken, handler(request))
-          next()
+
+    val subscription = Future.run() { cancellationToken =>
+      def next(): Future[Unit] = {
+        listener.nextRequest().flatMap { case (request, exchange) =>
+          if (cancellationToken.isCancelled) {
+            Future.successful()
+          } else {
+            respond(exchange, cancellationToken, handler(request))
+            next()
+          }
         }
       }
+      next()
     }
-    next()
 
-    cancellationTokenSource
+    subscription
   }
 
 }
