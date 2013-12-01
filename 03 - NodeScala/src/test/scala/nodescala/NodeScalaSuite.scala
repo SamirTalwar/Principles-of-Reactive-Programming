@@ -60,6 +60,29 @@ class NodeScalaSuite extends FunSuite {
     }
   }
 
+  test("`any` succeeds when its first future to complete succeeds") {
+    val a = Future.delay(300 milliseconds).flatMap(_ => Future.failed(new Exception))
+    val b = Future.delay(100 milliseconds).map(_ => "Woop.")
+    val c = Future.delay(200 milliseconds).flatMap(_ => Future.failed(new Exception))
+    val any = Future.any(List(a, b, c))
+    assert(Await.result(any, 500 milliseconds) == "Woop.")
+  }
+
+  test("`any` fails when its first future to complete fails") {
+    val exception = new Exception
+    val a = Future.delay(300 milliseconds).flatMap(_ => Future.failed(new Exception))
+    val b = Future.delay(200 milliseconds).map(_ => "Woop.")
+    val c = Future.delay(100 milliseconds).flatMap(_ => Future.failed(exception))
+    val any = Future.any(List(a, b, c))
+
+    try {
+      Await.result(any, 500 milliseconds)
+      fail()
+    } catch {
+      case e: Exception => assert(e == exception)
+    }
+  }
+
   test("CancellationTokenSource should allow stopping the computation") {
     val cts = CancellationTokenSource()
     val ct = cts.cancellationToken
