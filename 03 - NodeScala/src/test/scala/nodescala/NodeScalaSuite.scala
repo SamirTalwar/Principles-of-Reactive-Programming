@@ -104,6 +104,18 @@ class NodeScalaSuite extends FunSuite {
     assert(Await.result(continued, 200 milliseconds) == 0)
   }
 
+  test("`continueWith` handles exceptions thrown by the supplied function") {
+    val future = Future.delay(50 milliseconds).map(_ => "Meh")
+    val exception = new IllegalStateException("Boom!")
+    val continued = future.continueWith { f =>
+      throw exception
+    }
+
+    expectExceptionEqualTo(exception) {
+      Await.result(continued, 100 milliseconds)
+    }
+  }
+
   test("`continue` continues a successful future once it has completed") {
     val future = Future.delay(200 milliseconds).map(_ => "sausage")
     val continued = future.continue { result =>
@@ -118,6 +130,18 @@ class NodeScalaSuite extends FunSuite {
       result.map(i => i + " sandwich").getOrElse("no sandwich :-(")
     }
     assert(Await.result(continued, 200 milliseconds) == "no sandwich :-(")
+  }
+
+  test("`continue` handles exceptions thrown by the supplied function") {
+    val future = Future.delay(20 milliseconds).map(_ => "What?")
+    val exception = new Exception("Explode!")
+    val continued = future.continueWith { f =>
+      throw exception
+    }
+
+    expectExceptionEqualTo(exception) {
+      Await.result(continued, 100 milliseconds)
+    }
   }
 
   test("`run` executes a future with the ability to cancel it") {
