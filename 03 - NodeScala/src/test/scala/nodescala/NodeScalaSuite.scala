@@ -24,11 +24,8 @@ class NodeScalaSuite extends FunSuite {
   test("A Future should never be created") {
     val never = Future.never[Int]
 
-    try {
+    expectExceptionOfType[TimeoutException] {
       Await.result(never, 1 second)
-      fail()
-    } catch {
-      case t: TimeoutException => // ok!
     }
   }
 
@@ -53,11 +50,8 @@ class NodeScalaSuite extends FunSuite {
     val c = Future.delay(300 milliseconds).map(_ => 9)
     val all = Future.all(List(a, b, c))
 
-    try {
+    expectExceptionWithCause(error) {
       Await.result(all, 500 milliseconds)
-      fail()
-    } catch {
-      case e: ExecutionException => assert(e.getCause == error)
     }
   }
 
@@ -76,11 +70,8 @@ class NodeScalaSuite extends FunSuite {
     val c = Future.delay(100 milliseconds).flatMap(_ => Future.failed(exception))
     val any = Future.any(List(a, b, c))
 
-    try {
+    expectExceptionEqualTo(exception) {
       Await.result(any, 500 milliseconds)
-      fail()
-    } catch {
-      case e: Exception => assert(e == exception)
     }
   }
 
@@ -92,11 +83,8 @@ class NodeScalaSuite extends FunSuite {
   test("`now` fails with an error when the future is not yet complete") {
     val future = Future.never[String]
 
-    try {
+    expectExceptionOfType[NoSuchElementException] {
       future.now
-      fail()
-    } catch {
-      case t: NoSuchElementException => // ok!
     }
   }
 
@@ -267,8 +255,21 @@ class NodeScalaSuite extends FunSuite {
     dummySubscription.unsubscribe()
   }
 
+  private def expectException[E <: Throwable](check: E => Unit)(toRun: => Unit): E = {
+    try {
+      toRun
+      fail()
+    } catch {
+      case e: E => {
+        check(e)
+        return e
+      }
+    }
+  }
+
+  private def expectExceptionOfType[E <: Throwable] = expectException((e: E) => { }) _
+
+  private def expectExceptionEqualTo[E <: Throwable](exception: E) = expectException((e: E) => assert(exception == e)) _
+
+  private def expectExceptionWithCause[E <: Throwable](exception: E) = expectException((e: E) => assert(exception == e.getCause)) _
 }
-
-
-
-
