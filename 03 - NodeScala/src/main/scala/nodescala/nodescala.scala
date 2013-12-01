@@ -111,7 +111,13 @@ object NodeScala {
      *  @param relativePath    the relative path on which we want to listen to requests
      *  @return                the promise holding the pair of a request and an exchange object
      */
-    def nextRequest(): Future[(Request, Exchange)] = ???
+    def nextRequest(): Future[(Request, Exchange)] = {
+      val exchange = Promise[Exchange]()
+      createContext { e =>
+        exchange.success(e)
+      }
+      exchange.future.map(e => (e.request, e))
+    }
   }
 
   object Listener {
