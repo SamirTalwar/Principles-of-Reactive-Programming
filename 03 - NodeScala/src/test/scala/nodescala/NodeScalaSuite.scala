@@ -25,7 +25,7 @@ class NodeScalaSuite extends FunSuite {
 
     try {
       Await.result(never, 1 second)
-      assert(false)
+      fail()
     } catch {
       case t: TimeoutException => // ok!
     }
@@ -54,7 +54,7 @@ class NodeScalaSuite extends FunSuite {
 
     try {
       Await.result(all, 500 milliseconds)
-      assert(false)
+      fail()
     } catch {
       case e: ExecutionException => assert(e.getCause == error)
     }
