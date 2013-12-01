@@ -83,6 +83,11 @@ class NodeScalaSuite extends FunSuite {
     }
   }
 
+  test("`now` returns the future's value when it is already complete") {
+    val future = Future.always(17)
+    assert(future.now == 17)
+  }
+
   test("CancellationTokenSource should allow stopping the computation") {
     val cts = CancellationTokenSource()
     val ct = cts.cancellationToken
