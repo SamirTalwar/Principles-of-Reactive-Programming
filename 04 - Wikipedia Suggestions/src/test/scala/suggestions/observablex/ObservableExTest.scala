@@ -31,7 +31,7 @@ class ObservableExTest extends FunSuite with ShouldMatchers {
 
   test("the observable fails when the future fails") {
     val expectedThrowable = new Exception("Nope.")
-    val observable = ObservableEx(Future[Int] { throw expectedThrowable })
+    val observable = ObservableEx(Future.failed[Int](expectedThrowable))
     val scheduler = TestScheduler()
     var passed = false
     observable.subscribe({ _: Int =>
