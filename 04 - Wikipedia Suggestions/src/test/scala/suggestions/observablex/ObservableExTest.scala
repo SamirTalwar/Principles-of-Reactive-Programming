@@ -1,11 +1,12 @@
 package suggestions.observablex
 
 import scala.collection.mutable
-import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
-import org.scalatest._
+import scala.concurrent.Future
+import rx.lang.scala.concurrency.TestScheduler
 
 import org.junit.runner.RunWith
+import org.scalatest._
 import org.scalatest.junit.JUnitRunner
 import org.scalatest.matchers.ShouldMatchers
 
@@ -19,5 +20,24 @@ class ObservableExTest extends FunSuite with ShouldMatchers {
     }
 
     observed should be (Seq("thing"))
+  }
+
+  test("the observable fails when the future fails") {
+    val expectedThrowable = new Exception("Nope.")
+    val observable = ObservableEx(Future[Int] { throw expectedThrowable })
+    val scheduler = TestScheduler()
+    var passed = false
+    observable.subscribe({ _: Int =>
+      fail("There should never be a 'next'.")
+    }, { throwable =>
+      throwable should be (expectedThrowable)
+      passed = true
+    }, { () => {
+      fail("There should never be a 'completed'.")
+    } }, scheduler)
+
+    scheduler.triggerActions()
+
+    passed should be (true)
   }
 }

@@ -2,12 +2,7 @@ package suggestions
 package observablex
 
 import scala.concurrent.{Future, ExecutionContext}
-import scala.util._
-import scala.util.Success
-import scala.util.Failure
-import java.lang.Throwable
 import rx.lang.scala.Observable
-import rx.lang.scala.Scheduler
 import rx.lang.scala.subjects.ReplaySubject
 
 object ObservableEx {
@@ -22,6 +17,9 @@ object ObservableEx {
     val subject = ReplaySubject[T]()
     f.onSuccess { case value =>
       subject.onNext(value)
+    }
+    f.onFailure { case throwable =>
+      subject.onError(throwable)
     }
     subject
   }
