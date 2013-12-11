@@ -45,44 +45,39 @@ trait SwingApi {
     def unsubscribe(r: Reaction): Unit
   }
 
+  type Reactive <: {
+    def subscribe(r: Reaction): Unit
+    def unsubscribe(r: Reaction): Unit
+  }
+
   implicit class TextFieldOps(field: TextField) {
 
     /** Returns a stream of text field values entered in the given text field.
       * @return an observable with a stream of text field updates
       */
-    def textValues: Observable[String] = Observable { observer =>
-      val reaction: Reaction = {
-        case event: ValueChanged => {
-          observer.onNext(field.text)
-        }
-      }
-      field.subscribe(reaction)
-
-      BooleanSubscription {
-        field.unsubscribe(reaction)
-      }
-    }
+    def textValues: Observable[String] = field.asInstanceOf[Reactive] yielding field.text
 
   }
 
   implicit class ButtonOps(button: Button) {
-
     /** Returns a stream of button clicks.
      * @return an observable with a stream of buttons that have been clicked
      */
-    def clicks: Observable[Button] = Observable { observer =>
-      val reaction: Reaction = {
-        case event: ValueChanged => {
-          observer.onNext(button)
-        }
-      }
-      button.subscribe(reaction)
-
-      BooleanSubscription {
-        button.unsubscribe(reaction)
-      }
-    }
-
+    def clicks: Observable[Button] = button.asInstanceOf[Reactive] yielding button
   }
 
+  implicit class ReactiveOps(reactive: Reactive) {
+    def yielding[T](value: => T): Observable[T] = {
+      Observable { observer =>
+        val reaction: Reaction = {
+          case event: ValueChanged => observer.onNext(value)
+        }
+
+        reactive.subscribe(reaction)
+        BooleanSubscription {
+          reactive.unsubscribe(reaction)
+        }
+      }
+    }
+  }
 }
