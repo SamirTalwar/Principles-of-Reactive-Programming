@@ -70,7 +70,7 @@ trait SwingApi {
     def yielding[T](value: => T): Observable[T] = {
       Observable { observer =>
         val reaction: Reaction = {
-          case event: ValueChanged => observer.onNext(value)
+          case event => observer.onNext(value)
         }
 
         reactive.subscribe(reaction)
