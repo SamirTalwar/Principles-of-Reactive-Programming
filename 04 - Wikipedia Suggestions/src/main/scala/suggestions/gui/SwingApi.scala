@@ -68,11 +68,20 @@ trait SwingApi {
   implicit class ButtonOps(button: Button) {
 
     /** Returns a stream of button clicks.
-     *
-     * @param field the button
      * @return an observable with a stream of buttons that have been clicked
      */
-    def clicks: Observable[Button] = ???
+    def clicks: Observable[Button] = Observable { observer =>
+      val reaction: Reaction = {
+        case event: ValueChanged => {
+          observer.onNext(button)
+        }
+      }
+      button.subscribe(reaction)
+
+      BooleanSubscription {
+        button.unsubscribe(reaction)
+      }
+    }
 
   }
 
