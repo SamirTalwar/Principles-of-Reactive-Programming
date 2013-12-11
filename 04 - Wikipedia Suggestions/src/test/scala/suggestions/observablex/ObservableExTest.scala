@@ -15,9 +15,16 @@ class ObservableExTest extends FunSuite with ShouldMatchers {
   test("an observable is created from a future") {
     val observable = ObservableEx(Future("thing"))
     val observed = mutable.Buffer[String]()
-    observable subscribe {
+    val scheduler = TestScheduler()
+    observable.subscribe({
       observed += _
-    }
+    }, { _ =>
+      fail("There should never be an 'error' case.")
+    }, { () => {
+      observed should have (size (1))
+    } }, scheduler)
+
+    scheduler.triggerActions()
 
     observed should be (Seq("thing"))
   }

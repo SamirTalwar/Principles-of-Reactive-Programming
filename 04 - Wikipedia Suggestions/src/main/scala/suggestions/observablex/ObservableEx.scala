@@ -17,6 +17,7 @@ object ObservableEx {
     val subject = ReplaySubject[T]()
     f.onSuccess { case value =>
       subject.onNext(value)
+      subject.onCompleted()
     }
     f.onFailure { case throwable =>
       subject.onError(throwable)
