@@ -55,6 +55,7 @@ trait WikipediaApi {
         recoverable.onNext(Success(value))
       }, { throwable: Throwable =>
         recoverable.onNext(Failure(throwable))
+        recoverable.onCompleted()
       }, { () => {
         recoverable.onCompleted()
       } })

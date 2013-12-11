@@ -1,19 +1,17 @@
 package suggestions
 
-
-
 import language.postfixOps
 import scala.concurrent._
-import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.util.{Try, Success, Failure}
-import rx.lang.scala._
-import org.scalatest._
+import scala.util.{Success, Failure}
+import rx.lang.scala.{Observable, Observer}
+import rx.lang.scala.subscriptions.BooleanSubscription
+
 import gui._
 
 import org.junit.runner.RunWith
+import org.scalatest.FunSuite
 import org.scalatest.junit.JUnitRunner
-
 
 @RunWith(classOf[JUnitRunner])
 class WikipediaApiTest extends FunSuite {
@@ -40,7 +38,7 @@ class WikipediaApiTest extends FunSuite {
     var count = 0
     var completed = false
 
-    val sub = valid.subscribe(
+    valid.subscribe(
       term => {
         assert(term.forall(_ != ' '))
         count += 1
@@ -62,9 +60,39 @@ class WikipediaApiTest extends FunSuite {
       }
     }
     var total = -1
-    val sub = sum.subscribe {
+    sum.subscribe {
       s => total = s
     }
     assert(total == (1 + 1 + 2 + 1 + 2 + 3), s"Sum: $total")
+  }
+
+  test("WikipediaApi should recover from failure") {
+    val error = new Exception("Oh no.")
+    val requests = Observable { observer: Observer[Int] =>
+      observer.onNext(3)
+      observer.onNext(2)
+      observer.onNext(1)
+      observer.onError(error)
+      BooleanSubscription()
+    }
+
+    val recovered = requests.recovered
+    val sum = recovered.foldLeft(0) { (acc, tn) =>
+      tn match {
+        case Success(n) => acc + n
+        case Failure(t) => {
+          assert(t == error, t)
+          acc
+        }
+      }
+    }
+
+    var total = -1
+    sum.subscribe(
+      { s: Int => total = s },
+      { t: Throwable => fail(t) },
+      { () => { } }
+    )
+    assert(total == 6, s"Sum: $total")
   }
 }
