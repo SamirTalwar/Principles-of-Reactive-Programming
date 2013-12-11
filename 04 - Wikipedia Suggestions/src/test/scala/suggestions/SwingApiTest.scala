@@ -67,7 +67,7 @@ class SwingApiTest extends FunSuite {
     val values = textField.textValues
 
     val observed = mutable.Buffer[String]()
-    values subscribe {
+    val subscription = values subscribe {
       observed += _
     }
 
@@ -79,6 +79,9 @@ class SwingApiTest extends FunSuite {
     textField.text = "Turin"
     textField.text = "Turing"
 
+    subscription.unsubscribe()
+    textField.text = "Stephenson"
+
     assert(observed == Seq("T", "Tu", "Tur", "Turi", "Turin", "Turing"), observed)
   }
 
@@ -87,13 +90,18 @@ class SwingApiTest extends FunSuite {
     val clicks = button.clicks
 
     var clickCount = 0
-    clicks subscribe { _ =>
+    val subscription = clicks subscribe { _ =>
       clickCount += 1
     }
 
     // click a lot
     button.click()
     button.click()
+    button.click()
+    button.click()
+    button.click()
+
+    subscription.unsubscribe()
     button.click()
     button.click()
     button.click()
