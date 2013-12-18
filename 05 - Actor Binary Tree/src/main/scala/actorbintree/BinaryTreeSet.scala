@@ -108,12 +108,18 @@ class BinaryTreeNode(val elem: Int, initiallyRemoved: Boolean) extends Actor {
   /** Handles `Operation` messages and `CopyTo` requests. */
   val normal: Receive = {
     case msg @ Contains(requester, id, expectedElem) =>
-      if (is(expectedElem))
+      if (is(expectedElem)) {
         requester ! ContainsResult(id, true)
-      else if (subtrees.isEmpty)
+      } else if (subtrees.isEmpty) {
         requester ! ContainsResult(id, false)
-      else
-        subtrees.values foreach (actor => actor ! msg)
+      } else {
+        val position = positionOf(expectedElem)
+        if (subtrees.contains(position)) {
+          subtrees(position) ! msg
+        } else {
+          requester ! ContainsResult(id, false)
+        }
+      }
 
     case msg @ Insert(requester, id, elemToInsert) =>
       val position = if (elemToInsert < elem) Left else Right
