@@ -108,25 +108,17 @@ class BinaryTreeNode(val elem: Int, initiallyRemoved: Boolean) extends Actor {
   /** Handles `Operation` messages and `CopyTo` requests. */
   val normal: Receive = {
     case msg @ Contains(requester, id, expectedElem) =>
-      if (is(expectedElem)) {
+      if (is(expectedElem))
         requester ! ContainsResult(id, true)
-      } else if (subtrees.isEmpty) {
+      else if (subtrees.isEmpty)
         requester ! ContainsResult(id, false)
-      } else {
-        val position = positionOf(expectedElem)
-        if (subtrees.contains(position)) {
-          subtrees(position) ! msg
-        } else {
-          requester ! ContainsResult(id, false)
-        }
+      else
+        descendWith(expectedElem, msg) { _ =>
+        requester ! ContainsResult(id, false)
       }
 
     case msg @ Insert(requester, id, elemToInsert) =>
-      val position = if (elemToInsert < elem) Left else Right
-
-      if (subtrees.contains(position)) {
-        subtrees(position) ! msg
-      } else {
+      descendWith(elemToInsert, msg) { position =>
         subtrees += position -> context.actorOf(BinaryTreeNode.props(elemToInsert, false))
         requester ! OperationFinished(id)
       }
@@ -136,11 +128,9 @@ class BinaryTreeNode(val elem: Int, initiallyRemoved: Boolean) extends Actor {
         removed = true
         requester ! OperationFinished(id)
       } else {
-        val position = positionOf(elemToRemove)
-        if (subtrees.contains(position))
-          subtrees(position) ! msg
-        else
+        descendWith(elemToRemove, msg) { _ =>
           requester ! OperationFinished(id)
+        }
       }
 
     case _ =>
@@ -149,6 +139,15 @@ class BinaryTreeNode(val elem: Int, initiallyRemoved: Boolean) extends Actor {
   private def is(expectedElem: Int) = !removed && elem == expectedElem
 
   private def positionOf(expectedElem: Int) = if (expectedElem < elem) Left else Right
+
+  private def descendWith(expectedElem: Int, message: Operation)(otherwise: Position => Unit) = {
+    val position = positionOf(expectedElem)
+    if (subtrees.contains(position)) {
+      subtrees(position) ! message
+    } else {
+      otherwise(position)
+    }
+  }
 
   // optional
   /** `expected` is the set of ActorRefs whose replies we are waiting for,
