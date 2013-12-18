@@ -66,7 +66,11 @@ class BinaryTreeSet extends Actor {
 
   // optional
   /** Accepts `Operation` and `GC` messages. */
-  val normal: Receive = { case _ => ??? }
+  val normal: Receive = {
+    case msg @ Contains(_, _, _) => root ! msg
+    case msg @ Insert(_, _, _) => root ! msg
+    case _ =>
+  }
 
   // optional
   /** Handles messages while garbage collection is performed.
@@ -86,7 +90,7 @@ object BinaryTreeNode {
   case class CopyTo(treeNode: ActorRef)
   case object CopyFinished
 
-  def props(elem: Int, initiallyRemoved: Boolean) = Props(classOf[BinaryTreeNode],  elem, initiallyRemoved)
+  def props(elem: Int, initiallyRemoved: Boolean): Props = Props(new BinaryTreeNode(elem, initiallyRemoved))
 }
 
 class BinaryTreeNode(val elem: Int, initiallyRemoved: Boolean) extends Actor {
@@ -101,7 +105,25 @@ class BinaryTreeNode(val elem: Int, initiallyRemoved: Boolean) extends Actor {
 
   // optional
   /** Handles `Operation` messages and `CopyTo` requests. */
-  val normal: Receive = { case _ => ??? }
+  val normal: Receive = {
+    case msg @ Contains(requester, id, expectedElem) =>
+      if (elem == expectedElem)
+        requester ! ContainsResult(id, true)
+      else if (subtrees.isEmpty)
+        requester ! ContainsResult(id, false)
+      else
+        subtrees.values foreach (actor => actor ! msg)
+    case msg @ Insert(requester, id, elemToInsert) =>
+      val position = if (elemToInsert < elem) Left else Right
+
+      if (subtrees.contains(position)) {
+        subtrees(position) ! msg
+      } else {
+        subtrees += position -> context.actorOf(BinaryTreeNode.props(elemToInsert, false))
+        requester ! OperationFinished(id)
+      }
+    case _ =>
+  }
 
   // optional
   /** `expected` is the set of ActorRefs whose replies we are waiting for,
