@@ -69,6 +69,7 @@ class BinaryTreeSet extends Actor {
   val normal: Receive = {
     case msg @ Contains(_, _, _) => root ! msg
     case msg @ Insert(_, _, _) => root ! msg
+    case msg @ Remove(_, _, _) => root ! msg
     case _ =>
   }
 
@@ -107,12 +108,13 @@ class BinaryTreeNode(val elem: Int, initiallyRemoved: Boolean) extends Actor {
   /** Handles `Operation` messages and `CopyTo` requests. */
   val normal: Receive = {
     case msg @ Contains(requester, id, expectedElem) =>
-      if (elem == expectedElem)
+      if (is(expectedElem))
         requester ! ContainsResult(id, true)
       else if (subtrees.isEmpty)
         requester ! ContainsResult(id, false)
       else
         subtrees.values foreach (actor => actor ! msg)
+
     case msg @ Insert(requester, id, elemToInsert) =>
       val position = if (elemToInsert < elem) Left else Right
 
@@ -122,8 +124,25 @@ class BinaryTreeNode(val elem: Int, initiallyRemoved: Boolean) extends Actor {
         subtrees += position -> context.actorOf(BinaryTreeNode.props(elemToInsert, false))
         requester ! OperationFinished(id)
       }
+
+    case msg @ Remove(requester, id, elemToRemove) =>
+      if (is(elemToRemove)) {
+        removed = true
+        requester ! OperationFinished(id)
+      } else {
+        val position = positionOf(elemToRemove)
+        if (subtrees.contains(position))
+          subtrees(position) ! msg
+        else
+          requester ! OperationFinished(id)
+      }
+
     case _ =>
   }
+
+  private def is(expectedElem: Int) = !removed && elem == expectedElem
+
+  private def positionOf(expectedElem: Int) = if (expectedElem < elem) Left else Right
 
   // optional
   /** `expected` is the set of ActorRefs whose replies we are waiting for,
