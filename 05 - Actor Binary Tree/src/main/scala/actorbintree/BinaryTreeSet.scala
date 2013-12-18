@@ -118,10 +118,13 @@ class BinaryTreeNode(val elem: Int, initiallyRemoved: Boolean) extends Actor {
       }
 
     case msg @ Insert(requester, id, elemToInsert) =>
-      descendWith(elemToInsert, msg) { position =>
-        subtrees += position -> context.actorOf(BinaryTreeNode.props(elemToInsert, false))
+      if (is(elemToInsert))
         requester ! OperationFinished(id)
-      }
+      else
+        descendWith(elemToInsert, msg) { position =>
+          subtrees += position -> context.actorOf(BinaryTreeNode.props(elemToInsert, false))
+          requester ! OperationFinished(id)
+        }
 
     case msg @ Remove(requester, id, elemToRemove) =>
       if (is(elemToRemove)) {
