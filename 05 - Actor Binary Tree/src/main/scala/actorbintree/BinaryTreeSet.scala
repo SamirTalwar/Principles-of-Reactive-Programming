@@ -67,10 +67,12 @@ class BinaryTreeSet extends Actor {
   // optional
   /** Accepts `Operation` and `GC` messages. */
   val normal: Receive = {
-    case msg @ Contains(_, _, _) => root ! msg
-    case msg @ Insert(_, _, _) => root ! msg
-    case msg @ Remove(_, _, _) => root ! msg
-    case _ =>
+    case operation: Operation => root ! operation
+
+    case GC =>
+      val newRoot = createRoot
+      root ! CopyTo(newRoot)
+      context become garbageCollecting(newRoot)
   }
 
   // optional
@@ -78,7 +80,19 @@ class BinaryTreeSet extends Actor {
     * `newRoot` is the root of the new binary tree where we want to copy
     * all non-removed elements into.
     */
-  def garbageCollecting(newRoot: ActorRef): Receive = ???
+  def garbageCollecting(newRoot: ActorRef): Receive = {
+    case operation: Operation =>
+      pendingQueue = pendingQueue.enqueue(operation)
+
+    case CopyFinished =>
+      root ! PoisonPill
+      root = newRoot
+
+      pendingQueue foreach (root ! _)
+      pendingQueue = Queue.empty[Operation]
+
+      context become normal
+  }
 
 }
 
@@ -136,7 +150,14 @@ class BinaryTreeNode(val elem: Int, initiallyRemoved: Boolean) extends Actor {
         }
       }
 
-    case _ =>
+    case CopyTo(treeNode) =>
+      if (!removed)
+        treeNode ! Insert(self, 0, elem)
+      subtrees.values foreach (_ ! CopyTo(treeNode))
+      if (removed && subtrees.isEmpty)
+        sender ! CopyFinished
+      else
+        context.become(copying(subtrees.values.toSet, insertConfirmed = removed, sender))
   }
 
   private def is(expectedElem: Int) = !removed && elem == expectedElem
@@ -156,6 +177,22 @@ class BinaryTreeNode(val elem: Int, initiallyRemoved: Boolean) extends Actor {
   /** `expected` is the set of ActorRefs whose replies we are waiting for,
     * `insertConfirmed` tracks whether the copy of this node to the new tree has been confirmed.
     */
-  def copying(expected: Set[ActorRef], insertConfirmed: Boolean): Receive = ???
+  def copying(expected: Set[ActorRef], insertConfirmed: Boolean, originator: ActorRef): Receive = {
+    case OperationFinished(_) =>
+      if (expected.isEmpty) {
+        originator ! CopyFinished
+        context.become(normal)
+      } else {
+        context.become(copying(expected, insertConfirmed = true, originator))
+      }
+    case CopyFinished =>
+      val newExpected = expected - sender
+      if (newExpected.isEmpty && insertConfirmed) {
+        originator ! CopyFinished
+        context.become(normal)
+      } else {
+        context.become(copying(newExpected, insertConfirmed, originator))
+      }
+  }
 
 }
