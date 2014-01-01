@@ -29,18 +29,13 @@ class Replicator(val replica: ActorRef) extends Actor {
   // a sequence of not-yet-sent snapshots (you can disregard this if not implementing batching)
   var pending = Vector.empty[Snapshot]
   
-  var _seqCounter = 0L
-  def nextSeq = {
-    val ret = _seqCounter
-    _seqCounter += 1
-    ret
-  }
-  
   /* TODO Behavior for the Replicator. */
-  def receive: Receive = {
+  def receive = replicator(0)
+
+  def replicator(sequenceCounter: Long): Receive = {
     case Replicate(key, valueOption, id) =>
-      replica ! Snapshot(key, valueOption, _seqCounter)
-      nextSeq
+      replica ! Snapshot(key, valueOption, sequenceCounter)
+      context.become(replicator(sequenceCounter + 1))
   }
 
 }
