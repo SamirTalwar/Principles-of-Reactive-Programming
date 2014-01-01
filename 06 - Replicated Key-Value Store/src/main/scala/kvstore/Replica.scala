@@ -70,12 +70,12 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
   private def replica(expectedSeq: Long): Receive = {
     case Get(key, id) =>
       sender ! GetResult(key, kv.get(key), id)
-    case Snapshot(key, value, seq) =>
+    case Snapshot(key, valueOption, seq) =>
       if (seq < expectedSeq) {
         acknowledgeSnapshot(key, seq)
       } else if (seq == expectedSeq) {
-        if (value.isDefined)
-          kv += (key -> value.get)
+        if (valueOption.isDefined)
+          kv += (key -> valueOption.get)
         else
           kv -= key
         context.become(replica(expectedSeq + 1))
