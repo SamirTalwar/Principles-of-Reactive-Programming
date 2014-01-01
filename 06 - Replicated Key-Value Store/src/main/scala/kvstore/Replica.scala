@@ -1,5 +1,6 @@
 package kvstore
 
+import scala.collection.mutable
 import akka.actor.{ OneForOneStrategy, Props, ActorRef, Actor }
 import kvstore.Arbiter._
 import scala.collection.immutable.Queue
@@ -40,11 +41,13 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
    * The contents of this actor is just a suggestion, you can implement it in any way you like.
    */
   
-  var kv = Map.empty[String, String]
+  var kv = mutable.Map.empty[String, String]
   // a map from secondary replicas to replicators
   var secondaries = Map.empty[ActorRef, ActorRef]
   // the current set of replicators
   var replicators = Set.empty[ActorRef]
+
+  arbiter ! Join
 
   def receive = {
     case JoinedPrimary   => context.become(leader)
@@ -53,7 +56,14 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
 
   /* TODO Behavior for  the leader role. */
   val leader: Receive = {
-    case _ =>
+    case Get(key, id) =>
+      sender ! GetResult(key, kv.get(key), id)
+    case Insert(key, value, id) =>
+      kv += (key -> value)
+      sender ! OperationAck(id)
+    case Remove(key, id) =>
+      kv -= key
+      sender ! OperationAck(id)
   }
 
   /* TODO Behavior for the replica role. */
