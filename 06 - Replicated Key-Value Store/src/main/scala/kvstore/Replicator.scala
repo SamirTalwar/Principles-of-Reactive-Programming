@@ -1,5 +1,6 @@
 package kvstore
 
+import scala.collection.mutable
 import akka.actor.Props
 import akka.actor.Actor
 import akka.actor.ActorRef
@@ -19,23 +20,32 @@ class Replicator(val replica: ActorRef) extends Actor {
   import Replicator._
   import Replica._
   import context.dispatcher
-  
-  /*
-   * The contents of this actor is just a suggestion, you can implement it in any way you like.
-   */
 
-  // map from sequence number to pair of sender and request
-  var acks = Map.empty[Long, (ActorRef, Replicate)]
-  // a sequence of not-yet-sent snapshots (you can disregard this if not implementing batching)
-  var pending = Vector.empty[Snapshot]
-  
+  var idToSeq = mutable.Map.empty[Long, Long]
+  var acks = mutable.Set.empty[Long]
+
   /* TODO Behavior for the Replicator. */
   def receive = replicator(0)
 
   def replicator(sequenceCounter: Long): Receive = {
-    case Replicate(key, valueOption, id) =>
-      replica ! Snapshot(key, valueOption, sequenceCounter)
-      context.become(replicator(sequenceCounter + 1))
+    case message @ Replicate(key, valueOption, id) =>
+      val newReplication = !idToSeq.contains(id)
+      if (newReplication) {
+        replica ! Snapshot(key, valueOption, sequenceCounter)
+        context.system.scheduler.scheduleOnce(200.milliseconds, self, message)
+        idToSeq += id -> sequenceCounter
+        context.become(replicator(sequenceCounter + 1))
+      } else {
+        val seq = idToSeq(id)
+        if (acks.contains(seq)) {
+          idToSeq -= id
+        } else {
+          replica ! Snapshot(key, valueOption, seq)
+          context.system.scheduler.scheduleOnce(200.milliseconds, self, message)
+        }
+      }
+    case SnapshotAck(key, seq) =>
+      acks += seq
   }
 
 }
