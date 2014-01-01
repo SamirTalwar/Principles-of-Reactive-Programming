@@ -10,7 +10,10 @@ import kvstore.Arbiter.{ JoinedSecondary, Join }
 import kvstore.Persistence.{ Persisted, Persist }
 import scala.util.Random
 import scala.util.control.NonFatal
+import org.junit.runner.RunWith
+import org.scalatest.junit.JUnitRunner
 
+@RunWith(classOf[JUnitRunner])
 class Step2_SecondarySpec extends TestKit(ActorSystem("Step2SecondarySpec"))
   with FunSuite
   with BeforeAndAfterAll

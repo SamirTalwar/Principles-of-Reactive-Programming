@@ -13,7 +13,10 @@ import kvstore.Replica.OperationFailed
 import kvstore.Replicator.{ Snapshot }
 import scala.util.Random
 import scala.util.control.NonFatal
+import org.junit.runner.RunWith
+import org.scalatest.junit.JUnitRunner
 
+@RunWith(classOf[JUnitRunner])
 class Step1_PrimarySpec extends TestKit(ActorSystem("Step1PrimarySpec"))
   with FunSuite
   with BeforeAndAfterAll

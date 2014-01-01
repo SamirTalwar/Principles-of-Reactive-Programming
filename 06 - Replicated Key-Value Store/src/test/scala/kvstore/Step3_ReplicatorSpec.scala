@@ -9,7 +9,10 @@ import scala.concurrent.duration._
 import kvstore.Arbiter.{ JoinedSecondary, Join }
 import kvstore.Persistence.{ Persisted, Persist }
 import kvstore.Replicator.{ SnapshotAck, Snapshot, Replicate }
+import org.junit.runner.RunWith
+import org.scalatest.junit.JUnitRunner
 
+@RunWith(classOf[JUnitRunner])
 class Step3_ReplicatorSpec extends TestKit(ActorSystem("Step3ReplicatorSpec"))
   with FunSuite
   with BeforeAndAfterAll
