@@ -41,11 +41,14 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
    * The contents of this actor is just a suggestion, you can implement it in any way you like.
    */
   
-  var kv = mutable.Map.empty[String, String]
+  val kv = mutable.Map.empty[String, String]
   // a map from secondary replicas to replicators
   var secondaries = Map.empty[ActorRef, ActorRef]
   // the current set of replicators
   var replicators = Set.empty[ActorRef]
+
+  val persistence = context.actorOf(persistenceProps)
+  val persistMessagesToOriginators = mutable.Map.empty[Long, ActorRef]
 
   arbiter ! Join
 
@@ -78,12 +81,18 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
           kv += (key -> valueOption.get)
         else
           kv -= key
+
         context.become(replica(expectedSeq + 1))
-        acknowledgeSnapshot(key, seq)
+
+        persistence ! Persist(key, valueOption, seq)
+        persistMessagesToOriginators += seq -> sender
       }
+    case Persisted(key, seq) =>
+      acknowledgeSnapshot(key, seq, persistMessagesToOriginators(seq))
+      persistMessagesToOriginators -= seq
   }
 
-  private def acknowledgeSnapshot(key: String, seq: Long) {
-    sender ! SnapshotAck(key, seq)
+  private def acknowledgeSnapshot(key: String, seq: Long, originator: ActorRef = sender) {
+    originator ! SnapshotAck(key, seq)
   }
 }
