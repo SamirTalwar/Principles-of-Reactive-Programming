@@ -51,7 +51,7 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
 
   def receive = {
     case JoinedPrimary   => context.become(leader)
-    case JoinedSecondary => context.become(replica)
+    case JoinedSecondary => context.become(replica(-1))
   }
 
   /* TODO Behavior for  the leader role. */
@@ -67,15 +67,17 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
   }
 
   /* TODO Behavior for the replica role. */
-  val replica: Receive = {
+  def replica(currentSeq: Long): Receive = {
     case Get(key, id) =>
       sender ! GetResult(key, kv.get(key), id)
     case Snapshot(key, value, seq) =>
-      if (value.isDefined)
-        kv += (key -> value.get)
-      else
-        kv -= key
+      if (seq > currentSeq)
+        if (value.isDefined)
+          kv += (key -> value.get)
+        else
+          kv -= key
       sender ! SnapshotAck(key, seq)
+      context.become(replica(seq))
   }
 
 }
