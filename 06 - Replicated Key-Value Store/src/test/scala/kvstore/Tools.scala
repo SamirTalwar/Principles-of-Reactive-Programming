@@ -27,7 +27,7 @@ trait Tools { this: TestKit with FunSuite with ShouldMatchers with ImplicitSende
   import Arbiter._
   import Tools._
 
-  def probeProps(probe: TestProbe): Props = Props(classOf[TestRefWrappingActor], probe)
+  def probeProps(probe: TestProbe): Props = Props(new TestRefWrappingActor(probe))
   
   class Session(val probe: TestProbe, val replica: ActorRef) {
     import Replica._

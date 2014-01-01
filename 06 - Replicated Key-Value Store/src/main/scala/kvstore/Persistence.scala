@@ -10,7 +10,7 @@ object Persistence {
 
   class PersistenceException extends Exception("Persistence failure")
 
-  def props(flaky: Boolean): Props = Props(classOf[Persistence], flaky)
+  def props(flaky: Boolean): Props = Props(new Persistence(flaky))
 }
 
 class Persistence(flaky: Boolean) extends Actor {
