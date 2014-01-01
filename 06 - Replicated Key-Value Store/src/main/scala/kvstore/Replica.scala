@@ -1,17 +1,13 @@
 package kvstore
 
 import scala.collection.mutable
-import akka.actor.{ OneForOneStrategy, Props, ActorRef, Actor }
+import akka.actor._
 import kvstore.Arbiter._
 import scala.collection.immutable.Queue
 import akka.actor.SupervisorStrategy.Restart
 import scala.annotation.tailrec
 import akka.pattern.{ ask, pipe }
-import akka.actor.Terminated
 import scala.concurrent.duration._
-import akka.actor.PoisonPill
-import akka.actor.OneForOneStrategy
-import akka.actor.SupervisorStrategy
 import akka.util.Timeout
 
 object Replica {
@@ -22,6 +18,8 @@ object Replica {
   case class Insert(key: String, value: String, id: Long) extends Operation
   case class Remove(key: String, id: Long) extends Operation
   case class Get(key: String, id: Long) extends Operation
+
+  case class RePersist(key: String, valueOption: Option[String], seq: Long)
 
   sealed trait OperationReply
   case class OperationAck(id: Long) extends OperationReply
@@ -49,6 +47,7 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
 
   val persistence = context.actorOf(persistenceProps)
   val persistMessagesToOriginators = mutable.Map.empty[Long, ActorRef]
+  val persistMessagesToRepersisters = mutable.Map.empty[Long, Cancellable]
 
   arbiter ! Join
 
@@ -75,7 +74,7 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
       sender ! GetResult(key, kv.get(key), id)
     case Snapshot(key, valueOption, seq) =>
       if (seq < expectedSeq) {
-        acknowledgeSnapshot(key, seq)
+        acknowledgeSnapshot(key, seq, sender)
       } else if (seq == expectedSeq) {
         if (valueOption.isDefined)
           kv += (key -> valueOption.get)
@@ -84,15 +83,26 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
 
         context.become(replica(expectedSeq + 1))
 
-        persistence ! Persist(key, valueOption, seq)
-        persistMessagesToOriginators += seq -> sender
+        persistSnapshot(key, valueOption, seq)
       }
+    case RePersist(key, valueOption, seq) =>
+      persistSnapshot(key, valueOption, seq)
     case Persisted(key, seq) =>
       acknowledgeSnapshot(key, seq, persistMessagesToOriginators(seq))
       persistMessagesToOriginators -= seq
+      persistMessagesToRepersisters(seq).cancel()
+      persistMessagesToRepersisters -= seq
   }
 
-  private def acknowledgeSnapshot(key: String, seq: Long, originator: ActorRef = sender) {
+  private def persistSnapshot(key: String, valueOption: Option[String], seq: Long) {
+    val originator = persistMessagesToOriginators.getOrElse(seq, sender)
+    persistence ! Persist(key, valueOption, seq)
+    persistMessagesToOriginators += seq -> originator
+    val cancellable = context.system.scheduler.scheduleOnce(100.milliseconds, self, RePersist(key, valueOption, seq))
+    persistMessagesToRepersisters += seq -> cancellable
+  }
+
+  private def acknowledgeSnapshot(key: String, seq: Long, originator: ActorRef) {
     originator ! SnapshotAck(key, seq)
   }
 }
