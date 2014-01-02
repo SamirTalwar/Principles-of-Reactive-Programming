@@ -63,6 +63,7 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
 
     case Insert(key, value, id) =>
       kv += (key -> value)
+      persist(key, Some(value), id)
       sender ! OperationAck(id)
 
     case Remove(key, id) =>
@@ -70,8 +71,9 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
       sender ! OperationAck(id)
   }
 
-  /* TODO Behavior for the replica role. */
-  private def replica(expectedSeq: Long): Receive = {
+  private def replica(expectedSeq: Long) = _replica(expectedSeq) orElse persistenceHandler(SnapshotAck)
+
+  private def _replica(expectedSeq: Long): Receive = {
     case Get(key, id) =>
       sender ! GetResult(key, kv.get(key), id)
 
@@ -88,7 +90,9 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
 
         persist(key, valueOption, seq)
       }
+  }
 
+  def persistenceHandler(acknowledgement: (String, Long) => Any): Receive = {
     case RePersist(key, valueOption, seq) =>
       persist(key, valueOption, seq)
 
@@ -99,11 +103,11 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
       persistMessagesToRepersisters -= seq
   }
 
-  private def persist(key: String, valueOption: Option[String], seq: Long) {
-    val originator = persistMessagesToOriginators.getOrElse(seq, sender)
-    persistence ! Persist(key, valueOption, seq)
-    persistMessagesToOriginators += seq -> originator
-    val cancellable = context.system.scheduler.scheduleOnce(100.milliseconds, self, RePersist(key, valueOption, seq))
-    persistMessagesToRepersisters += seq -> cancellable
+  private def persist(key: String, valueOption: Option[String], id: Long) {
+    val originator = persistMessagesToOriginators.getOrElse(id, sender)
+    persistence ! Persist(key, valueOption, id)
+    persistMessagesToOriginators += id -> originator
+    val cancellable = context.system.scheduler.scheduleOnce(100.milliseconds, self, RePersist(key, valueOption, id))
+    persistMessagesToRepersisters += id -> cancellable
   }
 }
