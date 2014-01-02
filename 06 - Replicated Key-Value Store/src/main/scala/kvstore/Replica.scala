@@ -27,6 +27,8 @@ object Replica {
   case class GetResult(key: String, valueOption: Option[String], id: Long) extends OperationReply
 
   def props(arbiter: ActorRef, persistenceProps: Props): Props = Props(new Replica(arbiter, persistenceProps))
+
+  case class PersistenceContext(originator: ActorRef, repersister: Cancellable)
 }
 
 class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
@@ -46,8 +48,7 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
   var replicators = Set.empty[ActorRef]
 
   val persistence = context.actorOf(persistenceProps)
-  val persistMessagesToOriginators = mutable.Map.empty[Long, ActorRef]
-  val persistMessagesToRepersisters = mutable.Map.empty[Long, Cancellable]
+  val persistMessages = mutable.Map.empty[Long, PersistenceContext]
 
   arbiter ! Join
 
@@ -98,17 +99,16 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
       persist(key, valueOption, id)
 
     case Persisted(key, id) =>
-      persistMessagesToOriginators(id) ! acknowledgement(key, id)
-      persistMessagesToOriginators -= id
-      persistMessagesToRepersisters(id).cancel()
-      persistMessagesToRepersisters -= id
+      val PersistenceContext(originator, repersister) = persistMessages(id)
+      originator ! acknowledgement(key, id)
+      repersister.cancel()
+      persistMessages -= id
   }
 
   private def persist(key: String, valueOption: Option[String], id: Long) {
-    val originator = persistMessagesToOriginators.getOrElse(id, sender)
     persistence ! Persist(key, valueOption, id)
-    persistMessagesToOriginators += id -> originator
+    val originator = persistMessages.get(id).map(_.originator).getOrElse(sender)
     val cancellable = context.system.scheduler.scheduleOnce(100.milliseconds, self, RePersist(key, valueOption, id))
-    persistMessagesToRepersisters += id -> cancellable
+    persistMessages += id -> PersistenceContext(originator, cancellable)
   }
 }
