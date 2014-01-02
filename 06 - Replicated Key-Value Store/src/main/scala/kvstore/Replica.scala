@@ -69,6 +69,9 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
     case Replicas(replicas) =>
       val oldReplicators = (secondaries.keys.toSet -- replicas).map(secondaries(_))
       oldReplicators foreach { _ ! PoisonPill }
+      distribution foreach { case (id, DistributionContext(originator, distributionReplicators, persisted, schedule, startInMillis)) =>
+        distribution(id) = DistributionContext(originator, distributionReplicators -- oldReplicators, persisted, schedule, startInMillis)
+      }
 
       secondaries = replicas.filterNot(_ == self).map(replica => replica -> context.actorOf(Replicator.props(replica))).toMap
       replicators = secondaries.values.toSet
