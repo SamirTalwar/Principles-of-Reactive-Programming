@@ -27,7 +27,7 @@ object Replica {
   def props(arbiter: ActorRef, persistenceProps: Props): Props = Props(new Replica(arbiter, persistenceProps))
 
   case class Distribute(key: String, valueOption: Option[String], id: Long)
-  case class DistributionContext(originator: ActorRef, replicationsRemaining: Int, persisted: Boolean, schedule: Cancellable, startInMillis: Long)
+  case class DistributionContext(originator: ActorRef, replicators: Set[ActorRef], persisted: Boolean, schedule: Cancellable, startInMillis: Long)
 }
 
 class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
@@ -104,8 +104,8 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
 
   private def handleDistribution(timeoutInMillis: Option[Long], acknowledgement: (String, Long) => Any): Receive = {
     case message @ Distribute(key, valueOption, id) =>
-      val DistributionContext(originator, replicationsRemaining, persisted, schedule, startInMillis) = distribution(id)
-      if (replicationsRemaining <= 0 && persisted) {
+      val DistributionContext(originator, replicators, persisted, schedule, startInMillis) = distribution(id)
+      if (replicators.isEmpty && persisted) {
         schedule.cancel()
         originator ! acknowledgement(key, id)
         distribution -= id
@@ -118,19 +118,19 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
         }
         
         val newSchedule = context.system.scheduler.scheduleOnce(100.milliseconds, self, message)
-        distribution(id) = DistributionContext(originator, replicationsRemaining, persisted, newSchedule, startInMillis)
+        distribution(id) = DistributionContext(originator, replicators, persisted, newSchedule, startInMillis)
       }
 
     case Persisted(key, id) =>
       if (distribution.contains(id)) {
-        val DistributionContext(originator, replicationsRemaining, _, schedule, startInMillis) = distribution(id)
-        distribution(id) = DistributionContext(originator, replicationsRemaining, persisted = true, schedule, startInMillis)
+        val DistributionContext(originator, replicators, _, schedule, startInMillis) = distribution(id)
+        distribution(id) = DistributionContext(originator, replicators, persisted = true, schedule, startInMillis)
       }
 
     case Replicated(key, id) =>
       if (distribution.contains(id)) {
-        val DistributionContext(originator, replicationsRemaining, persisted, schedule, startInMillis) = distribution(id)
-        distribution(id) = DistributionContext(originator, replicationsRemaining - 1, persisted, schedule, startInMillis)
+        val DistributionContext(originator, replicators, persisted, schedule, startInMillis) = distribution(id)
+        distribution(id) = DistributionContext(originator, replicators - sender, persisted, schedule, startInMillis)
       }
   }
 
@@ -140,7 +140,7 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
     }
     replicationCounter += 1
 
-    distribution(id) = DistributionContext(sender, replicationsRemaining = replicators.size, persisted = false, schedule = null, now)
+    distribution(id) = DistributionContext(sender, replicators, persisted = false, schedule = null, now)
     self ! Distribute(key, valueOption, id)
   }
 
