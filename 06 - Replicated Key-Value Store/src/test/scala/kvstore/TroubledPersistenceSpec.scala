@@ -58,4 +58,25 @@ class TroubledPersistenceSpec extends TestKit(ActorSystem("TroubledPersistenceSp
       }
     }
   }
+
+  test("a completely broken persistence layer will break everything") {
+    val arbiter = TestProbe()
+    val primary = system.actorOf(Replica.props(arbiter.ref, Persistence.flaky), "case3-primary")
+    val persistenceStates = Seq(Persistence.stable, Persistence.flaky, Persistence.broken, Persistence.flaky, Persistence.stable)
+    val secondaries = (1 to 5).zip(persistenceStates).map { case (i, persistence) =>
+      system.actorOf(Replica.props(arbiter.ref, persistence), s"case3-secondary-$i")
+    }.toSet
+    val replicas = Seq(primary) ++ secondaries
+    val primaryClient = session(primary)
+    val secondaryClients = secondaries.map(secondary => session(secondary))
+    val clients = Seq(primaryClient) ++ secondaryClients
+
+    replicas foreach { _ => arbiter.expectMsg(Join) }
+    arbiter.send(primary, JoinedPrimary)
+    secondaries foreach { secondary => arbiter.send(secondary, JoinedSecondary) }
+    arbiter.send(primary, Replicas(Set(primary) ++ secondaries))
+
+    val id = primaryClient.set("key", "value")
+    primaryClient.waitFailed(id)
+  }
 }

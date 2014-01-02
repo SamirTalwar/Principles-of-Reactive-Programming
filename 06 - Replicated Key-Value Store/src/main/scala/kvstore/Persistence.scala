@@ -12,6 +12,7 @@ object Persistence {
 
   def stable: Props = Props(new Persistence)
   def flaky: Props = Props(new FlakyPersistence(stable))
+  def broken: Props = Props(new BrokenPersistence)
 }
 
 class Persistence extends Actor {
@@ -32,5 +33,14 @@ class FlakyPersistence(persistenceProps: Props) extends Actor {
     case message @ Persist(key, _, id) =>
       if (Random.nextBoolean()) persistence.tell(message, sender)
       else throw new PersistenceException
+  }
+}
+
+class BrokenPersistence extends Actor {
+  import Persistence._
+
+  def receive = LoggingReceive {
+    case Persist(_, _, _) =>
+      throw new PersistenceException
   }
 }

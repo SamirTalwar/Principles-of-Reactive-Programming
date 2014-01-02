@@ -43,13 +43,18 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
   var secondaries = Map.empty[ActorRef, ActorRef]
   var replicators = Set.empty[ActorRef]
   var replicationCounter = Long.MaxValue / 2
-  val persistence = context.actorOf(persistenceProps)
+  val persistence = context.actorOf(persistenceProps, "persistence")
+
+  var sequenceNumber: Long = 0
+  def nextSequence() {
+    sequenceNumber += 1
+  }
 
   arbiter ! Join
 
   def receive = {
     case JoinedPrimary   => context.become(leader)
-    case JoinedSecondary => context.become(replica(0))
+    case JoinedSecondary => context.become(replica)
   }
 
   /* TODO Behavior for  the leader role. */
@@ -85,22 +90,20 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
       }
   }
 
-  private def replica(expectedSeq: Long) = LoggingReceive(_replica(expectedSeq) orElse handleDistribution(None, SnapshotAck))
+  private def replica = LoggingReceive(_replica orElse handleDistribution(None, SnapshotAck))
 
-  private def _replica(expectedSeq: Long): Receive = {
+  private def _replica: Receive = {
     case Get(key, id) =>
       sender ! GetResult(key, kv.get(key), id)
 
     case Snapshot(key, valueOption, seq) =>
-      if (seq < expectedSeq) {
+      if (seq < sequenceNumber) {
         sender ! SnapshotAck(key, seq)
-      } else if (seq == expectedSeq) {
+      } else if (seq == sequenceNumber) {
         if (valueOption.isDefined)
           kv += key -> valueOption.get
         else
           kv -= key
-
-        context.become(replica(expectedSeq + 1))
 
         distribute(key, valueOption, seq)
       }
@@ -113,9 +116,11 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
         if (replicators.isEmpty && persisted) {
           schedule.cancel()
           originator ! acknowledgement(key, id)
+          nextSequence()
           distribution -= id
         } else if (timeoutInMillis.isDefined && now > startInMillis + timeoutInMillis.get) {
           originator ! OperationFailed(id)
+          nextSequence()
           distribution -= id
         } else if (!persisted) {
           persistence ! Persist(key, valueOption, id)
