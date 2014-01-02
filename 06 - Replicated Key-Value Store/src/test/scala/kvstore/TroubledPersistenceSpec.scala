@@ -17,7 +17,7 @@ class TroubledPersistenceSpec extends TestKit(ActorSystem("TroubledPersistenceSp
   with ImplicitSender
   with Tools {
 
-  test("a broken persistence layer won't stop a Primary") {
+  test("a flaky persistence layer won't stop a Primary") {
     val arbiter = TestProbe()
     val primary = system.actorOf(Replica.props(arbiter.ref, Persistence.flaky), "case1-primary")
     val client = session(primary)
@@ -34,10 +34,10 @@ class TroubledPersistenceSpec extends TestKit(ActorSystem("TroubledPersistenceSp
     }
   }
 
-  test("a broken persistence layer won't stop a Primary with Secondaries") {
+  test("a flaky persistence layer won't stop a Primary with Secondaries") {
     val arbiter = TestProbe()
     val primary = system.actorOf(Replica.props(arbiter.ref, Persistence.flaky), "case2-primary")
-    val secondaries = (1 to 1).map(i => system.actorOf(Replica.props(arbiter.ref, Persistence.flaky), s"case2-secondary-$i")).toSet
+    val secondaries = (1 to 5).map(i => system.actorOf(Replica.props(arbiter.ref, Persistence.flaky), s"case2-secondary-$i")).toSet
     val replicas = Seq(primary) ++ secondaries
     val primaryClient = session(primary)
     val secondaryClients = secondaries.map(secondary => session(secondary))
