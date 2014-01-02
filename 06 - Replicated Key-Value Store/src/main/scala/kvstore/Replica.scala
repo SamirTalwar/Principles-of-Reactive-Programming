@@ -60,9 +60,11 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
   private val leader: Receive = {
     case Get(key, id) =>
       sender ! GetResult(key, kv.get(key), id)
+
     case Insert(key, value, id) =>
       kv += (key -> value)
       sender ! OperationAck(id)
+
     case Remove(key, id) =>
       kv -= key
       sender ! OperationAck(id)
@@ -72,9 +74,10 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
   private def replica(expectedSeq: Long): Receive = {
     case Get(key, id) =>
       sender ! GetResult(key, kv.get(key), id)
+
     case Snapshot(key, valueOption, seq) =>
       if (seq < expectedSeq) {
-        acknowledgeSnapshot(key, seq, sender)
+        sender ! SnapshotAck(key, seq)
       } else if (seq == expectedSeq) {
         if (valueOption.isDefined)
           kv += (key -> valueOption.get)
@@ -83,26 +86,24 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
 
         context.become(replica(expectedSeq + 1))
 
-        persistSnapshot(key, valueOption, seq)
+        persist(key, valueOption, seq)
       }
+
     case RePersist(key, valueOption, seq) =>
-      persistSnapshot(key, valueOption, seq)
+      persist(key, valueOption, seq)
+
     case Persisted(key, seq) =>
-      acknowledgeSnapshot(key, seq, persistMessagesToOriginators(seq))
+      persistMessagesToOriginators(seq) ! SnapshotAck(key, seq)
       persistMessagesToOriginators -= seq
       persistMessagesToRepersisters(seq).cancel()
       persistMessagesToRepersisters -= seq
   }
 
-  private def persistSnapshot(key: String, valueOption: Option[String], seq: Long) {
+  private def persist(key: String, valueOption: Option[String], seq: Long) {
     val originator = persistMessagesToOriginators.getOrElse(seq, sender)
     persistence ! Persist(key, valueOption, seq)
     persistMessagesToOriginators += seq -> originator
     val cancellable = context.system.scheduler.scheduleOnce(100.milliseconds, self, RePersist(key, valueOption, seq))
     persistMessagesToRepersisters += seq -> cancellable
-  }
-
-  private def acknowledgeSnapshot(key: String, seq: Long, originator: ActorRef) {
-    originator ! SnapshotAck(key, seq)
   }
 }
