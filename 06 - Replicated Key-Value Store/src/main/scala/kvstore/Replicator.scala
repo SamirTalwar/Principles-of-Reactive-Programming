@@ -27,6 +27,12 @@ class Replicator(val replica: ActorRef) extends Actor {
   /* TODO Behavior for the Replicator. */
   def receive = replicator(0)
 
+  override def postStop() {
+    resenders.values foreach {
+      _.cancel()
+    }
+  }
+
   private def replicator(sequenceCounter: Long): Receive = {
     case Replicate(key, valueOption, id) =>
       sendSnapshot(key, valueOption, id, sequenceCounter)

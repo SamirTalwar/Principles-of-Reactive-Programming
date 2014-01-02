@@ -35,15 +35,11 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
   import Persistence._
   import context.dispatcher
 
-  /*
-   * The contents of this actor is just a suggestion, you can implement it in any way you like.
-   */
-  
   val kv = mutable.Map.empty[String, String]
-  // a map from secondary replicas to replicators
+
   var secondaries = Map.empty[ActorRef, ActorRef]
-  // the current set of replicators
   var replicators = Set.empty[ActorRef]
+  var replicationCounter = 0
 
   val persistence = context.actorOf(persistenceProps)
   val persistMessages = mutable.Map.empty[Long, PersistenceContext]
@@ -63,7 +59,7 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
       sender ! GetResult(key, kv.get(key), id)
 
     case Insert(key, value, id) =>
-      kv += (key -> value)
+      kv += key -> value
       replicate(key, Some(value), id)
       persist(key, Some(value), id)
 
@@ -73,13 +69,17 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
       persist(key, None, id)
 
     case Replicas(replicas) =>
-      replicators = replicas.filterNot(_ == self).map(replica => context.actorOf(Props(new Replicator(replica))))
-      var counter = 0
-      replicators foreach { replicator =>
-        kv foreach { case (key, value) =>
-          replicator ! Replicate(key, Some(value), counter)
-          counter += 1
+      val oldReplicators = (secondaries.keys.toSet -- replicas).map(secondaries(_))
+      oldReplicators foreach { _ ! PoisonPill }
+
+      secondaries = replicas.filterNot(_ == self).map(replica => replica -> context.actorOf(Replicator.props(replica))).toMap
+      replicators = secondaries.values.toSet
+
+      kv foreach { case (key, value) =>
+        replicators foreach { replicator =>
+          replicator ! Replicate(key, Some(value), replicationCounter)
         }
+        replicationCounter += 1
       }
   }
 
@@ -106,8 +106,9 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
 
   private def replicate(key: String, valueOption: Option[String], id: Long) = {
     replicators foreach { replicator =>
-      replicator ! Replicate(key, valueOption, id)
+      replicator ! Replicate(key, valueOption, replicationCounter)
     }
+    replicationCounter += 1
   }
 
   private def persistenceHandler(timeoutInMillis: Option[Long], acknowledgement: (String, Long) => Any): Receive = {
