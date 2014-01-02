@@ -19,8 +19,6 @@ object Replica {
   case class Remove(key: String, id: Long) extends Operation
   case class Get(key: String, id: Long) extends Operation
 
-  case class RePersist(key: String, valueOption: Option[String], seq: Long)
-
   sealed trait OperationReply
   case class OperationAck(id: Long) extends OperationReply
   case class OperationFailed(id: Long) extends OperationReply
@@ -28,7 +26,7 @@ object Replica {
 
   def props(arbiter: ActorRef, persistenceProps: Props): Props = Props(new Replica(arbiter, persistenceProps))
 
-  case class PersistenceContext(originator: ActorRef, repersister: Cancellable)
+  case class PersistenceContext(originator: ActorRef, repersister: Cancellable, startInMillis: Long)
 }
 
 class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
@@ -58,7 +56,7 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
   }
 
   /* TODO Behavior for  the leader role. */
-  private def leader: Receive = _leader orElse persistenceHandler((key, id) => OperationAck(id))
+  private def leader: Receive = _leader orElse persistenceHandler(Some(1000), (key, id) => OperationAck(id))
 
   private def _leader: Receive = {
     case Get(key, id) =>
@@ -73,7 +71,7 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
       persist(key, None, id)
   }
 
-  private def replica(expectedSeq: Long) = _replica(expectedSeq) orElse persistenceHandler(SnapshotAck)
+  private def replica(expectedSeq: Long) = _replica(expectedSeq) orElse persistenceHandler(None, SnapshotAck)
 
   private def _replica(expectedSeq: Long): Receive = {
     case Get(key, id) =>
@@ -84,7 +82,7 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
         sender ! SnapshotAck(key, seq)
       } else if (seq == expectedSeq) {
         if (valueOption.isDefined)
-          kv += (key -> valueOption.get)
+          kv += key -> valueOption.get
         else
           kv -= key
 
@@ -94,21 +92,31 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
       }
   }
 
-  def persistenceHandler(acknowledgement: (String, Long) => Any): Receive = {
-    case RePersist(key, valueOption, id) =>
-      persist(key, valueOption, id)
+  private def persistenceHandler(timeoutInMillis: Option[Long], acknowledgement: (String, Long) => Any): Receive = {
+    case persist @ Persist(_, _, id) =>
+      persistence ! persist
+
+      val PersistenceContext(originator, _, startInMillis) = persistMessages(id)
+
+      if (timeoutInMillis.isDefined && now > startInMillis + timeoutInMillis.get) {
+        originator ! OperationFailed(id)
+      } else {
+        val newRepersister = context.system.scheduler.scheduleOnce(100.milliseconds, self, persist)
+        persistMessages += id -> PersistenceContext(originator, newRepersister, startInMillis)
+      }
 
     case Persisted(key, id) =>
-      val PersistenceContext(originator, repersister) = persistMessages(id)
+      val PersistenceContext(originator, repersister, _) = persistMessages(id)
       originator ! acknowledgement(key, id)
       repersister.cancel()
       persistMessages -= id
   }
 
+
   private def persist(key: String, valueOption: Option[String], id: Long) {
-    persistence ! Persist(key, valueOption, id)
-    val originator = persistMessages.get(id).map(_.originator).getOrElse(sender)
-    val cancellable = context.system.scheduler.scheduleOnce(100.milliseconds, self, RePersist(key, valueOption, id))
-    persistMessages += id -> PersistenceContext(originator, cancellable)
+    persistMessages += id -> PersistenceContext(sender, null, now)
+    self ! Persist(key, valueOption, id)
   }
+
+  private def now = System.currentTimeMillis()
 }
