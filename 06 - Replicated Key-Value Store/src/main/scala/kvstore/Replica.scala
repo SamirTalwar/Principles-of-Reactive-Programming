@@ -128,7 +128,7 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
       }
 
     case Replicated(key, id) =>
-      if (!distribution.contains(id)) {
+      if (distribution.contains(id)) {
         val DistributionContext(originator, replicationsRemaining, persisted, schedule, startInMillis) = distribution(id)
         distribution(id) = DistributionContext(originator, replicationsRemaining - 1, persisted, schedule, startInMillis)
       }
