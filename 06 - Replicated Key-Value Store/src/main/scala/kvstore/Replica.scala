@@ -107,21 +107,18 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
 
   private def handleDistribution(timeoutInMillis: Option[Long], acknowledgement: (String, Long) => Any): Receive = {
     case message @ Distribute(key, valueOption, id) =>
-      val DistributionContext(originator, replicators, persisted, schedule, startInMillis) = distribution(id)
-      if (replicators.isEmpty && persisted) {
-        schedule.cancel()
-        originator ! acknowledgement(key, id)
-        distribution -= id
-      } else if (timeoutInMillis.isDefined && now > startInMillis + timeoutInMillis.get) {
-        originator ! OperationFailed(id)
-        distribution -= id
-      } else {
-        if (!persisted) {
+      if (distribution.contains(id)) {
+        val DistributionContext(originator, replicators, persisted, schedule, startInMillis) = distribution(id)
+        if (replicators.isEmpty && persisted) {
+          schedule.cancel()
+          originator ! acknowledgement(key, id)
+          distribution -= id
+        } else if (timeoutInMillis.isDefined && now > startInMillis + timeoutInMillis.get) {
+          originator ! OperationFailed(id)
+          distribution -= id
+        } else if (!persisted) {
           persistence ! Persist(key, valueOption, id)
         }
-        
-        val newSchedule = context.system.scheduler.scheduleOnce(100.milliseconds, self, message)
-        distribution(id) = DistributionContext(originator, replicators, persisted, newSchedule, startInMillis)
       }
 
     case Persisted(key, id) =>
@@ -143,8 +140,8 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
     }
     replicationCounter += 1
 
-    distribution(id) = DistributionContext(sender, replicators, persisted = false, schedule = null, now)
-    self ! Distribute(key, valueOption, id)
+    val schedule = context.system.scheduler.schedule(0.milliseconds, 100.milliseconds, self, Distribute(key, valueOption, id))
+    distribution(id) = DistributionContext(sender, replicators, persisted = false, schedule, now)
   }
 
   private def now = System.currentTimeMillis()

@@ -14,7 +14,7 @@ object Replicator {
 
   def props(replica: ActorRef): Props = Props(new Replicator(replica))
   
-  case class ReplicationContext(id: Long, originator: ActorRef, resender: Cancellable)
+  case class ReplicationContext(id: Long, originator: ActorRef, schedule: Cancellable)
 }
 
 class Replicator(val replica: ActorRef) extends Actor {
@@ -27,32 +27,25 @@ class Replicator(val replica: ActorRef) extends Actor {
   def receive = replicator(0)
 
   override def postStop() {
-    replications.values foreach { case ReplicationContext(_, _, resender) =>
-      resender.cancel()
+    replications.values foreach { case ReplicationContext(_, _, schedule) =>
+      schedule.cancel()
     }
   }
 
   private def replicator(sequenceCounter: Long): Receive = {
     case Replicate(key, valueOption, id) =>
-      replications(sequenceCounter) = ReplicationContext(id, sender, null)
-      sendSnapshot(key, valueOption, id, sequenceCounter)
+      val schedule = context.system.scheduler.schedule(0.milliseconds, 100.milliseconds, self, ReReplicate(key, valueOption, id, sequenceCounter))
+      replications(sequenceCounter) = ReplicationContext(id, sender, schedule)
       context.become(replicator(sequenceCounter + 1))
 
     case ReReplicate(key, valueOption, id, seq) =>
-      sendSnapshot(key, valueOption, id, seq)
+      replica ! Snapshot(key, valueOption, seq)
 
     case SnapshotAck(key, seq) =>
-      val ReplicationContext(id, originator, resender) = replications(seq)
+      val ReplicationContext(id, originator, schedule) = replications(seq)
       originator ! Replicated(key, id)
-      resender.cancel()
+      schedule.cancel()
 
       replications -= seq
-  }
-
-  private def sendSnapshot(key: String, valueOption: Option[String], id: Long, seq: Long) {
-    val ReplicationContext(id, originator, _) = replications(seq)
-    replica ! Snapshot(key, valueOption, seq)
-    val cancellable = context.system.scheduler.scheduleOnce(200.milliseconds, self, ReReplicate(key, valueOption, id, seq))
-    replications += seq -> ReplicationContext(id, originator, cancellable)
   }
 }
