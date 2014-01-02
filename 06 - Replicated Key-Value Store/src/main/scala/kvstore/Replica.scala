@@ -64,11 +64,23 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
 
     case Insert(key, value, id) =>
       kv += (key -> value)
+      replicate(key, Some(value), id)
       persist(key, Some(value), id)
 
     case Remove(key, id) =>
       kv -= key
+      replicate(key, None, id)
       persist(key, None, id)
+
+    case Replicas(replicas) =>
+      replicators = replicas.filterNot(_ == self).map(replica => context.actorOf(Props(new Replicator(replica))))
+      var counter = 0
+      replicators foreach { replicator =>
+        kv foreach { case (key, value) =>
+          replicator ! Replicate(key, Some(value), counter)
+          counter += 1
+        }
+      }
   }
 
   private def replica(expectedSeq: Long) = _replica(expectedSeq) orElse persistenceHandler(None, SnapshotAck)
@@ -92,6 +104,12 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
       }
   }
 
+  private def replicate(key: String, valueOption: Option[String], id: Long) = {
+    replicators foreach { replicator =>
+      replicator ! Replicate(key, valueOption, id)
+    }
+  }
+
   private def persistenceHandler(timeoutInMillis: Option[Long], acknowledgement: (String, Long) => Any): Receive = {
     case persist @ Persist(_, _, id) =>
       persistence ! persist
@@ -111,7 +129,6 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
       repersister.cancel()
       persistMessages -= id
   }
-
 
   private def persist(key: String, valueOption: Option[String], id: Long) {
     persistMessages += id -> PersistenceContext(sender, null, now)
