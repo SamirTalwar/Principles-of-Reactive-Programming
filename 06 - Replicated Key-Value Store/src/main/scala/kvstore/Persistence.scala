@@ -1,8 +1,7 @@
 package kvstore
 
-import akka.actor.{Props, Actor}
 import scala.util.Random
-import java.util.concurrent.atomic.AtomicInteger
+import akka.actor.{Props, Actor}
 import akka.event.LoggingReceive
 
 object Persistence {
@@ -11,16 +10,27 @@ object Persistence {
 
   class PersistenceException extends Exception("Persistence failure")
 
-  def props(flaky: Boolean): Props = Props(new Persistence(flaky))
+  def stable: Props = Props(new Persistence)
+  def flaky: Props = Props(new FlakyPersistence(stable))
 }
 
-class Persistence(flaky: Boolean) extends Actor {
+class Persistence extends Actor {
   import Persistence._
 
   def receive = LoggingReceive {
     case Persist(key, _, id) =>
-      if (!flaky || Random.nextBoolean()) sender ! Persisted(key, id)
+      sender ! Persisted(key, id)
+  }
+}
+
+class FlakyPersistence(persistenceProps: Props) extends Actor {
+  import Persistence._
+  
+  val persistence = context.actorOf(persistenceProps)
+
+  def receive = LoggingReceive {
+    case message @ Persist(key, _, id) =>
+      if (Random.nextBoolean()) persistence.tell(message, sender)
       else throw new PersistenceException
   }
-
 }

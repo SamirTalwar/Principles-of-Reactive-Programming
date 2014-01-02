@@ -19,7 +19,7 @@ class TroubledPersistenceSpec extends TestKit(ActorSystem("TroubledPersistenceSp
 
   test("a broken persistence layer won't stop a Primary") {
     val arbiter = TestProbe()
-    val primary = system.actorOf(Replica.props(arbiter.ref, Persistence.props(flaky = true)), "case1-primary")
+    val primary = system.actorOf(Replica.props(arbiter.ref, Persistence.flaky), "case1-primary")
     val client = session(primary)
 
     arbiter.expectMsg(Join)
@@ -36,8 +36,8 @@ class TroubledPersistenceSpec extends TestKit(ActorSystem("TroubledPersistenceSp
 
   test("a broken persistence layer won't stop a Primary with Secondaries") {
     val arbiter = TestProbe()
-    val primary = system.actorOf(Replica.props(arbiter.ref, Persistence.props(flaky = true)), "case2-primary")
-    val secondaries = (1 to 1).map(i => system.actorOf(Replica.props(arbiter.ref, Persistence.props(flaky = true)), s"case2-secondary-$i")).toSet
+    val primary = system.actorOf(Replica.props(arbiter.ref, Persistence.flaky), "case2-primary")
+    val secondaries = (1 to 1).map(i => system.actorOf(Replica.props(arbiter.ref, Persistence.flaky), s"case2-secondary-$i")).toSet
     val replicas = Seq(primary) ++ secondaries
     val primaryClient = session(primary)
     val secondaryClients = secondaries.map(secondary => session(secondary))

@@ -19,8 +19,8 @@ class DistributionSpec extends TestKit(ActorSystem("DistributionSpec"))
 
   test("the Primary distributes to many Secondaries") {
     val arbiter = TestProbe()
-    val primary = system.actorOf(Replica.props(arbiter.ref, Persistence.props(flaky = false)), "primary")
-    val secondaries = (1 to 1).map(i => system.actorOf(Replica.props(arbiter.ref, Persistence.props(flaky = false)), s"secondary-$i")).toSet
+    val primary = system.actorOf(Replica.props(arbiter.ref, Persistence.stable), "primary")
+    val secondaries = (1 to 1).map(i => system.actorOf(Replica.props(arbiter.ref, Persistence.stable), s"secondary-$i")).toSet
     val replicas = Seq(primary) ++ secondaries
     val primaryClient = session(primary)
     val secondaryClients = secondaries.map(secondary => session(secondary))
