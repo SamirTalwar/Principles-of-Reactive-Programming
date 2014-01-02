@@ -26,7 +26,8 @@ object Replica {
 
   def props(arbiter: ActorRef, persistenceProps: Props): Props = Props(new Replica(arbiter, persistenceProps))
 
-  case class PersistenceContext(originator: ActorRef, repersister: Cancellable, startInMillis: Long)
+  case class Distribute(key: String, valueOption: Option[String], id: Long)
+  case class DistributionContext(originator: ActorRef, replicationsRemaining: Int, persisted: Boolean, schedule: Cancellable, startInMillis: Long)
 }
 
 class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
@@ -37,12 +38,11 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
 
   val kv = mutable.Map.empty[String, String]
 
+  val distribution = mutable.Map.empty[Long, DistributionContext]
   var secondaries = Map.empty[ActorRef, ActorRef]
   var replicators = Set.empty[ActorRef]
-  var replicationCounter = 0
-
+  var replicationCounter = Long.MaxValue / 2
   val persistence = context.actorOf(persistenceProps)
-  val persistMessages = mutable.Map.empty[Long, PersistenceContext]
 
   arbiter ! Join
 
@@ -52,7 +52,7 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
   }
 
   /* TODO Behavior for  the leader role. */
-  private def leader: Receive = _leader orElse persistenceHandler(Some(1000), (key, id) => OperationAck(id))
+  private def leader: Receive = _leader orElse distribution(Some(1000), (key, id) => OperationAck(id))
 
   private def _leader: Receive = {
     case Get(key, id) =>
@@ -60,13 +60,11 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
 
     case Insert(key, value, id) =>
       kv += key -> value
-      replicate(key, Some(value), id)
-      persist(key, Some(value), id)
+      distribute(key, Some(value), id)
 
     case Remove(key, id) =>
       kv -= key
-      replicate(key, None, id)
-      persist(key, None, id)
+      distribute(key, None, id)
 
     case Replicas(replicas) =>
       val oldReplicators = (secondaries.keys.toSet -- replicas).map(secondaries(_))
@@ -83,7 +81,7 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
       }
   }
 
-  private def replica(expectedSeq: Long) = _replica(expectedSeq) orElse persistenceHandler(None, SnapshotAck)
+  private def replica(expectedSeq: Long) = _replica(expectedSeq) orElse distribution(None, SnapshotAck)
 
   private def _replica(expectedSeq: Long): Receive = {
     case Get(key, id) =>
@@ -100,40 +98,50 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
 
         context.become(replica(expectedSeq + 1))
 
-        persist(key, valueOption, seq)
+        distribute(key, valueOption, seq)
       }
   }
 
-  private def replicate(key: String, valueOption: Option[String], id: Long) = {
-    replicators foreach { replicator =>
-      replicator ! Replicate(key, valueOption, replicationCounter)
-    }
-    replicationCounter += 1
-  }
-
-  private def persistenceHandler(timeoutInMillis: Option[Long], acknowledgement: (String, Long) => Any): Receive = {
-    case persist @ Persist(_, _, id) =>
-      persistence ! persist
-
-      val PersistenceContext(originator, _, startInMillis) = persistMessages(id)
-
-      if (timeoutInMillis.isDefined && now > startInMillis + timeoutInMillis.get) {
+  private def distribution(timeoutInMillis: Option[Long], acknowledgement: (String, Long) => Any): Receive = {
+    case message @ Distribute(key, valueOption, id) =>
+      val DistributionContext(originator, replicationsRemaining, persisted, schedule, startInMillis) = distribution(id)
+      if (replicationsRemaining <= 0 && persisted) {
+        schedule.cancel()
+        originator ! acknowledgement(key, id)
+        distribution -= id
+      } else if (timeoutInMillis.isDefined && now > startInMillis + timeoutInMillis.get) {
         originator ! OperationFailed(id)
+        distribution -= id
       } else {
-        val newRepersister = context.system.scheduler.scheduleOnce(100.milliseconds, self, persist)
-        persistMessages += id -> PersistenceContext(originator, newRepersister, startInMillis)
+        if (!persisted) {
+          persistence ! Persist(key, valueOption, id)
+        }
+        
+        val newSchedule = context.system.scheduler.scheduleOnce(100.milliseconds, self, message)
+        distribution += id -> DistributionContext(originator, replicationsRemaining, persisted, newSchedule, startInMillis)
       }
 
     case Persisted(key, id) =>
-      val PersistenceContext(originator, repersister, _) = persistMessages(id)
-      originator ! acknowledgement(key, id)
-      repersister.cancel()
-      persistMessages -= id
+      if (distribution.contains(id)) {
+        val DistributionContext(originator, replicationsRemaining, _, schedule, startInMillis) = distribution(id)
+        distribution += id -> DistributionContext(originator, replicationsRemaining, persisted = true, schedule, startInMillis)
+      }
+
+    case Replicated(key, id) =>
+      if (!distribution.contains(id)) {
+        val DistributionContext(originator, replicationsRemaining, persisted, schedule, startInMillis) = distribution(id)
+        distribution += id -> DistributionContext(originator, replicationsRemaining - 1, persisted, schedule, startInMillis)
+      }
   }
 
-  private def persist(key: String, valueOption: Option[String], id: Long) {
-    persistMessages += id -> PersistenceContext(sender, null, now)
-    self ! Persist(key, valueOption, id)
+  private def distribute(key: String, valueOption: Option[String], id: Long) {
+    replicators foreach { replicator =>
+      replicator ! Replicate(key, valueOption, id)
+    }
+    replicationCounter += 1
+
+    distribution += id -> DistributionContext(sender, replicationsRemaining = replicators.size, persisted = false, schedule = null, now)
+    self ! Distribute(key, valueOption, id)
   }
 
   private def now = System.currentTimeMillis()
