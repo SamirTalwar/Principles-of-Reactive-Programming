@@ -42,10 +42,12 @@ class Replicator(val replica: ActorRef) extends Actor {
       replica ! Snapshot(key, valueOption, seq)
 
     case SnapshotAck(key, seq) =>
-      val ReplicationContext(id, originator, schedule) = replications(seq)
-      originator ! Replicated(key, id)
-      schedule.cancel()
+      if (replications.contains(seq)) {
+        val ReplicationContext(id, originator, schedule) = replications(seq)
+        originator ! Replicated(key, id)
+        schedule.cancel()
 
-      replications -= seq
+        replications -= seq
+      }
   }
 }
