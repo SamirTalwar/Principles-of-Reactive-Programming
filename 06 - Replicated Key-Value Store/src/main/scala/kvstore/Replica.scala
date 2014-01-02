@@ -57,18 +57,19 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
   }
 
   /* TODO Behavior for  the leader role. */
-  private val leader: Receive = {
+  private def leader: Receive = _leader orElse persistenceHandler((key, id) => OperationAck(id))
+
+  private def _leader: Receive = {
     case Get(key, id) =>
       sender ! GetResult(key, kv.get(key), id)
 
     case Insert(key, value, id) =>
       kv += (key -> value)
       persist(key, Some(value), id)
-      sender ! OperationAck(id)
 
     case Remove(key, id) =>
       kv -= key
-      sender ! OperationAck(id)
+      persist(key, None, id)
   }
 
   private def replica(expectedSeq: Long) = _replica(expectedSeq) orElse persistenceHandler(SnapshotAck)
@@ -93,14 +94,14 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
   }
 
   def persistenceHandler(acknowledgement: (String, Long) => Any): Receive = {
-    case RePersist(key, valueOption, seq) =>
-      persist(key, valueOption, seq)
+    case RePersist(key, valueOption, id) =>
+      persist(key, valueOption, id)
 
-    case Persisted(key, seq) =>
-      persistMessagesToOriginators(seq) ! SnapshotAck(key, seq)
-      persistMessagesToOriginators -= seq
-      persistMessagesToRepersisters(seq).cancel()
-      persistMessagesToRepersisters -= seq
+    case Persisted(key, id) =>
+      persistMessagesToOriginators(id) ! acknowledgement(key, id)
+      persistMessagesToOriginators -= id
+      persistMessagesToRepersisters(id).cancel()
+      persistMessagesToRepersisters -= id
   }
 
   private def persist(key: String, valueOption: Option[String], id: Long) {
