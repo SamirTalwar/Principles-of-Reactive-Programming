@@ -9,6 +9,7 @@ import scala.annotation.tailrec
 import akka.pattern.{ ask, pipe }
 import scala.concurrent.duration._
 import akka.util.Timeout
+import akka.event.LoggingReceive
 
 object Replica {
   sealed trait Operation {
@@ -52,7 +53,7 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
   }
 
   /* TODO Behavior for  the leader role. */
-  private def leader: Receive = _leader orElse handleDistribution(Some(1000), (key, id) => OperationAck(id))
+  private def leader = LoggingReceive(_leader orElse handleDistribution(Some(1000), (key, id) => OperationAck(id)))
 
   private def _leader: Receive = {
     case Get(key, id) =>
@@ -84,7 +85,7 @@ class Replica(val arbiter: ActorRef, persistenceProps: Props) extends Actor {
       }
   }
 
-  private def replica(expectedSeq: Long) = _replica(expectedSeq) orElse handleDistribution(None, SnapshotAck)
+  private def replica(expectedSeq: Long) = LoggingReceive(_replica(expectedSeq) orElse handleDistribution(None, SnapshotAck))
 
   private def _replica(expectedSeq: Long): Receive = {
     case Get(key, id) =>

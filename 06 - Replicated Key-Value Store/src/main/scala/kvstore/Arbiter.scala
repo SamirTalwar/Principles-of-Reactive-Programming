@@ -2,6 +2,7 @@ package kvstore
 
 import akka.actor.{ActorRef, Actor}
 import scala.collection.immutable
+import akka.event.LoggingReceive
 
 object Arbiter {
   case object Join
@@ -20,7 +21,7 @@ class Arbiter extends Actor {
   var leader: Option[ActorRef] = None
   var replicas = Set.empty[ActorRef]
 
-  def receive = {
+  def receive = LoggingReceive {
     case Join =>
       if (leader.isEmpty) {
         leader = Some(sender)
