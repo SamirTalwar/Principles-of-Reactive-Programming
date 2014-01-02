@@ -21,9 +21,8 @@ class Replicator(val replica: ActorRef) extends Actor {
   import Replicator._
   import context.dispatcher
 
-  private var replications = mutable.Map.empty[Long, ReplicationContext]
+  private val replications = mutable.Map.empty[Long, ReplicationContext]
 
-  /* TODO Behavior for the Replicator. */
   def receive = replicator(0)
 
   override def postStop() {
